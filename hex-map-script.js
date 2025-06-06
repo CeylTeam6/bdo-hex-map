@@ -1,6 +1,13 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
+import {
+  getFirestore,
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  collection
+} from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBlPghrv_E1KU-NOVysGKgPjkceGnKSQjQ",
@@ -19,8 +26,6 @@ const db = getFirestore(app);
 let isAdmin = false;
 const canvas = document.getElementById("hexMap");
 const ctx = canvas.getContext("2d");
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
 
 const hexSize = 60;
 const hexWidth = Math.sqrt(3) * hexSize;
@@ -32,7 +37,6 @@ const background = new Image();
 background.src = "BDOMAP.jpg?v=" + Date.now();
 
 const tooltip = document.getElementById("tooltip");
-
 let hexGrid = {};
 
 function hexToPixel(q, r) {
@@ -79,6 +83,7 @@ function drawHex(x, y, color = "rgba(0,0,0,0)") {
 }
 
 function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
   Object.entries(hexGrid).forEach(([key, data]) => {
     const { q, r, color } = data;
@@ -88,6 +93,7 @@ function render() {
 }
 
 canvas.addEventListener("click", async (e) => {
+  if (!isAdmin) return alert("You must be logged in to edit.");
   const rect = canvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
   const mouseY = e.clientY - rect.top;
@@ -95,9 +101,6 @@ canvas.addEventListener("click", async (e) => {
   const key = `${q},${r}`;
 
   let data = hexGrid[key] || { q, r, color: "rgba(0,0,0,0)", title: "Untitled", info: "", image: "" };
-
-  if (!isAdmin) return alert("You must be logged in to edit.");
-
   const title = prompt("Enter title:", data.title);
   const info = prompt("Enter description:", data.info);
   const image = prompt("Enter image URL:", data.image);
@@ -127,24 +130,24 @@ canvas.addEventListener("mousemove", (e) => {
 });
 
 async function loadGrid() {
-  const cols = Math.ceil(canvas.width / horizDist);
-  const rows = Math.ceil(canvas.height / vertDist);
-
-  for (let r = -rows; r < rows; r++) {
-    for (let q = -cols; q < cols; q++) {
-      const key = `${q},${r}`;
-      const docSnap = await getDoc(doc(db, "hexTiles", key));
-      if (docSnap.exists()) {
-        hexGrid[key] = docSnap.data();
-      } else {
-        hexGrid[key] = { q, r, color: "rgba(0,0,0,0)", title: "", info: "", image: "" };
-      }
-    }
+  try {
+    const querySnapshot = await getDocs(collection(db, "hexTiles"));
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      const key = `${data.q},${data.r}`;
+      hexGrid[key] = data;
+    });
+    render();
+  } catch (error) {
+    console.error("Error loading grid:", error);
   }
-  render();
 }
 
-background.onload = loadGrid;
+background.onload = () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  loadGrid();
+};
 
 window.login = () => {
   const email = document.getElementById("email").value;
@@ -156,8 +159,10 @@ window.login = () => {
 
 window.logout = () => {
   signOut(auth);
+  alert("Logged out.");
 };
 
 onAuthStateChanged(auth, user => {
   isAdmin = !!user;
+  console.log("Auth status:", isAdmin);
 });

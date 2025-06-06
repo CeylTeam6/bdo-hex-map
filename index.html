@@ -1,48 +1,42 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
   <title>BDO Hex Map</title>
   <style>
-    body, html {
+    html, body {
       margin: 0;
+      padding: 0;
       overflow: hidden;
     }
     canvas {
       display: block;
-      position: absolute;
-      top: 0;
-      left: 0;
     }
     #tooltip {
       position: absolute;
-      background: rgba(0, 0, 0, 0.75);
+      background: rgba(0,0,0,0.8);
       color: white;
-      padding: 8px;
-      border-radius: 6px;
+      padding: 6px;
+      border-radius: 4px;
       pointer-events: none;
       display: none;
-      max-width: 200px;
-      z-index: 10;
+      font-family: sans-serif;
+      font-size: 14px;
     }
-    #authPanel {
-      position: fixed;
+    #loginBox {
+      position: absolute;
       top: 10px;
-      right: 10px;
-      background: rgba(255,255,255,0.8);
+      left: 10px;
+      background: white;
       padding: 10px;
-      border-radius: 8px;
-      z-index: 20;
-    }
-    #authPanel input {
-      margin: 2px 0;
+      border: 1px solid #ccc;
+      z-index: 10;
     }
   </style>
 </head>
 <body>
   <canvas id="hexMap"></canvas>
   <div id="tooltip"></div>
-  <div id="authPanel">
+  <div id="loginBox">
     <input type="email" id="email" placeholder="Email"><br>
     <input type="password" id="password" placeholder="Password"><br>
     <button onclick="login()">Login</button>
