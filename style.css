@@ -1,0 +1,51 @@
+body {
+  font-family: sans-serif;
+  text-align: center;
+}
+
+#map-container {
+  position: relative;
+  display: inline-block;
+}
+
+#map-background {
+  width: 800px;
+}
+
+#hex-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 800px;
+  height: auto;
+  pointer-events: none;
+}
+
+.hex-tile {
+  width: 50px;
+  height: 58px;
+  position: absolute;
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  background-color: rgba(0, 128, 255, 0.5);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+#info-panel {
+  margin-top: 20px;
+  border: 1px solid gray;
+  padding: 10px;
+  width: 300px;
+  margin: auto;
+  background: #f8f8f8;
+}
+
+#info-panel.hidden {
+  display: none;
+}
+
+#tile-image {
+  width: 100%;
+  height: auto;
+  margin-top: 10px;
+}
