@@ -31,6 +31,35 @@
       border: 1px solid #ccc;
       z-index: 10;
     }
+    #orderBox {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: white;
+      padding: 10px;
+      border: 1px solid #ccc;
+      z-index: 10;
+    }
+    #adminChat {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background: white;
+      padding: 10px;
+      border: 1px solid #ccc;
+      z-index: 10;
+      display: none;
+    }
+    #orderPrompt {
+      position: absolute;
+      bottom: 100px;
+      left: 10px;
+      background: white;
+      padding: 10px;
+      border: 1px solid #ccc;
+      z-index: 10;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -42,7 +71,22 @@
     <button onclick="login()">Login</button>
     <button onclick="logout()">Logout</button>
   </div>
-
+  <div id="orderBox">
+    <button onclick="submitOrder('attack')">Attack Orders</button>
+    <button onclick="submitOrder('defense')">Defense Orders</button>
+    <button onclick="submitOrder('economy')">Bolster Economy</button>
+  </div>
+  <div id="orderPrompt">
+    Noble House: <input type="text" id="nobleHouseInput"><br>
+    Target: <input type="text" id="targetInput"><br>
+    <button onclick="confirmOrder()">Confirm</button>
+    <button onclick="cancelOrder()">Cancel</button>
+  </div>
+  <div id="adminChat">
+    <h4>Admin Chat</h4>
+    <ul id="orderList"></ul>
+    <button onclick="clearOrders()">Clear Orders</button>
+  </div>
   <script type="module" src="hex-map-script.js"></script>
 </body>
 </html>
