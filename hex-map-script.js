@@ -1,10 +1,6 @@
+// Firebase and canvas setup (keep your current firebase config)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-  onAuthStateChanged,
-  signOut,
-} from "https://www.gstatic.com/firebasejs/11.9.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-auth.js";
 import {
   getFirestore,
   doc,
@@ -13,11 +9,9 @@ import {
   getDocs,
   collection,
   addDoc,
-  deleteDoc,
-  query,
+  deleteDoc
 } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
 
-// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyBlPghrv_E1KU-NOVysGKgPjkceGnKSQjQ",
   authDomain: "bdohexmap.firebaseapp.com",
@@ -25,21 +19,161 @@ const firebaseConfig = {
   storageBucket: "bdohexmap.appspot.com",
   messagingSenderId: "196874353655",
   appId: "1:196874353655:web:b8dd232f20238b3febccf2",
-  measurementId: "G-KHZS1LRC97",
+  measurementId: "G-KHZS1LRC97"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Globals
 let isAdmin = false;
-let currentOrderType = "";
 
+onAuthStateChanged(auth, user => {
+  isAdmin = !!user;
+  document.getElementById("adminChat").style.display = isAdmin ? "block" : "none";
+  if (isAdmin) loadOrders();
+});
+
+window.login = () => {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  signInWithEmailAndPassword(auth, email, password)
+    .then(() => alert("Logged in!"))
+    .catch(err => alert("Login error: " + err.message));
+};
+
+window.logout = () => {
+  signOut(auth);
+  alert("Logged out.");
+};
+
+// Order logic
+let currentOrderType = null;
+
+window.submitOrder = (type) => {
+  currentOrderType = type;
+  document.getElementById("orderPrompt").style.display = "block";
+};
+
+window.confirmOrder = async () => {
+  const house = document.getElementById("nobleHouseInput").value;
+  const target = document.getElementById("targetInput").value;
+  let emoji;
+  switch (currentOrderType) {
+    case "attack": emoji = "⚔️"; break;
+    case "defense": emoji = "🛡️"; break;
+    case "economy": emoji = "📈"; break;
+    case "spy": emoji = "🕵️"; break;
+    case "sabotage": emoji = "💣"; break;
+    case "diplomacy": emoji = "🕊️"; break;
+    default: emoji = "❔";
+  }
+  const message = `${emoji} ${house} issues a ${currentOrderType.toUpperCase()} order targeting ${target}`;
+
+  await addDoc(collection(db, "orders"), {
+    type: currentOrderType,
+    house,
+    target,
+    message,
+    timestamp: Date.now()
+  });
+
+  document.getElementById("orderPrompt").style.display = "none";
+  document.getElementById("nobleHouseInput").value = "";
+  document.getElementById("targetInput").value = "";
+
+  if (isAdmin) loadOrders();
+};
+
+window.cancelOrder = () => {
+  document.getElementById("orderPrompt").style.display = "none";
+};
+
+// Register Noble House logic
+window.registerNobleHouse = () => {
+  document.getElementById("registerPrompt").style.display = "block";
+};
+
+window.confirmRegistration = async () => {
+  const family = document.getElementById("familyNameInput").value;
+  const domain = document.getElementById("domainInput").value;
+  const heraldry = document.getElementById("heraldryInput").value;
+  const message = `🏰 Noble House Registered:\nFamily: ${family}\nDomain: ${domain}\nHeraldry: ${heraldry}`;
+
+  await addDoc(collection(db, "orders"), {
+    type: "registration",
+    family,
+    domain,
+    heraldry,
+    message,
+    timestamp: Date.now()
+  });
+
+  document.getElementById("registerPrompt").style.display = "none";
+  document.getElementById("familyNameInput").value = "";
+  document.getElementById("domainInput").value = "";
+  document.getElementById("heraldryInput").value = "";
+
+  if (isAdmin) loadOrders();
+};
+
+window.cancelRegistration = () => {
+  document.getElementById("registerPrompt").style.display = "none";
+};
+
+let highlightedOrders = [];
+
+function highlightOrderTargets(orderData) {
+  clearOrderHighlights();
+  const keys = Object.keys(hexGrid);
+  const targetMatch = keys.find(k => {
+    const { title } = hexGrid[k];
+    return title.toLowerCase().includes(orderData.target.toLowerCase());
+  });
+
+  if (targetMatch) {
+    const hex = hexGrid[targetMatch];
+    highlightedOrders.push({ key: targetMatch, originalColor: hex.color });
+    hex.color = "rgba(255, 0, 0, 0.5)";
+    render();
+  }
+}
+
+function clearOrderHighlights() {
+  highlightedOrders.forEach(({ key, originalColor }) => {
+    if (hexGrid[key]) {
+      hexGrid[key].color = originalColor;
+    }
+  });
+  highlightedOrders = [];
+  render();
+}
+
+window.loadOrders = async () => {
+  const list = document.getElementById("orderList");
+  list.innerHTML = "";
+  const querySnapshot = await getDocs(collection(db, "orders"));
+  querySnapshot.forEach(doc => {
+    const data = doc.data();
+    const li = document.createElement("li");
+    li.textContent = `[${data.type}] ${data.house} -> ${data.target}`;
+    li.style.cursor = "pointer";
+    li.onclick = () => highlightOrderTargets(data);
+    list.appendChild(li);
+  });
+};
+
+window.clearOrders = async () => {
+  const querySnapshot = await getDocs(collection(db, "orders"));
+  querySnapshot.forEach(async docSnap => {
+    await deleteDoc(doc(db, "orders", docSnap.id));
+  });
+  document.getElementById("orderList").innerHTML = "";
+};
+
+// Canvas & Hex logic
 const canvas = document.getElementById("hexMap");
 const ctx = canvas.getContext("2d");
-
 const hexSize = 60;
 const hexWidth = Math.sqrt(3) * hexSize;
 const hexHeight = 2 * hexSize;
@@ -47,14 +181,7 @@ const background = new Image();
 background.src = "BDOMAP.jpg?v=" + Date.now();
 
 const tooltip = document.getElementById("tooltip");
-const adminChat = document.getElementById("adminChat");
-const orderList = document.getElementById("orderList");
-
-const orderPrompt = document.getElementById("orderPrompt");
-const nobleHouseInput = document.getElementById("nobleHouseInput");
-const targetInput = document.getElementById("targetInput");
-
-let hexGrid = {};
+const hexGrid = {};
 
 function hexToPixel(q, r) {
   const x = hexSize * Math.sqrt(3) * (q + r / 2);
@@ -154,72 +281,8 @@ async function loadGrid() {
   render();
 }
 
-async function loadOrders() {
-  orderList.innerHTML = "";
-  const snap = await getDocs(collection(db, "orders"));
-  snap.forEach(docSnap => {
-    const data = docSnap.data();
-    const li = document.createElement("li");
-    li.textContent = `[${data.type}] ${data.house} -> ${data.target}`;
-    orderList.appendChild(li);
-  });
-}
-
-window.login = () => {
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-  signInWithEmailAndPassword(auth, email, password)
-    .then(() => alert("Logged in!"))
-    .catch(err => alert("Login error: " + err.message));
-};
-
-window.logout = () => {
-  signOut(auth);
-  alert("Logged out.");
-};
-
-onAuthStateChanged(auth, (user) => {
-  isAdmin = !!user;
-  if (isAdmin) {
-    adminChat.style.display = "block";
-    loadOrders();
-  } else {
-    adminChat.style.display = "none";
-  }
-});
-
 background.onload = () => {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   loadGrid();
-};
-
-// Order System
-window.submitOrder = (type) => {
-  currentOrderType = type;
-  orderPrompt.style.display = "block";
-};
-
-window.cancelOrder = () => {
-  orderPrompt.style.display = "none";
-};
-
-window.confirmOrder = async () => {
-  const house = nobleHouseInput.value.trim();
-  const target = targetInput.value.trim();
-  if (!house || !target) return alert("Fill in both fields.");
-  await addDoc(collection(db, "orders"), { type: currentOrderType, house, target });
-  if (isAdmin) await loadOrders();
-  nobleHouseInput.value = "";
-  targetInput.value = "";
-  orderPrompt.style.display = "none";
-};
-
-// Admin Clear Orders
-window.clearOrders = async () => {
-  const snap = await getDocs(collection(db, "orders"));
-  for (const docSnap of snap.docs) {
-    await deleteDoc(doc(db, "orders", docSnap.id));
-  }
-  orderList.innerHTML = "";
 };

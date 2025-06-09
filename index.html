@@ -1,92 +1,73 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>BDO Hex Map</title>
+  <meta charset="UTF-8">
+  <title>Hex Map</title>
   <style>
-    html, body {
+    body, html {
       margin: 0;
       padding: 0;
       overflow: hidden;
     }
-    canvas {
-      display: block;
-    }
     #tooltip {
-      position: absolute;
-      background: rgba(0,0,0,0.8);
-      color: white;
-      padding: 6px;
-      border-radius: 4px;
-      pointer-events: none;
       display: none;
-      font-family: sans-serif;
-      font-size: 14px;
-    }
-    #loginBox {
       position: absolute;
-      top: 10px;
-      left: 10px;
       background: white;
-      padding: 10px;
-      border: 1px solid #ccc;
-      z-index: 10;
-    }
-    #orderBox {
-      position: absolute;
-      bottom: 10px;
-      left: 10px;
-      background: white;
-      padding: 10px;
-      border: 1px solid #ccc;
-      z-index: 10;
-    }
-    #adminChat {
-      position: absolute;
-      bottom: 10px;
-      right: 10px;
-      background: white;
-      padding: 10px;
-      border: 1px solid #ccc;
-      z-index: 10;
-      display: none;
-    }
-    #orderPrompt {
-      position: absolute;
-      bottom: 100px;
-      left: 10px;
-      background: white;
-      padding: 10px;
-      border: 1px solid #ccc;
-      z-index: 10;
-      display: none;
+      border: 1px solid black;
+      padding: 5px;
     }
   </style>
 </head>
 <body>
-  <canvas id="hexMap"></canvas>
-  <div id="tooltip"></div>
-  <div id="loginBox">
-    <input type="email" id="email" placeholder="Email"><br>
-    <input type="password" id="password" placeholder="Password"><br>
-    <button onclick="login()">Login</button>
-    <button onclick="logout()">Logout</button>
-  </div>
-  <div id="orderBox">
-    <button onclick="submitOrder('attack')">Attack Orders</button>
-    <button onclick="submitOrder('defense')">Defense Orders</button>
-    <button onclick="submitOrder('economy')">Bolster Economy</button>
-  </div>
-  <div id="orderPrompt">
-    Noble House: <input type="text" id="nobleHouseInput"><br>
-    Target: <input type="text" id="targetInput"><br>
-    <button onclick="confirmOrder()">Confirm</button>
-    <button onclick="cancelOrder()">Cancel</button>
-  </div>
-  <div id="adminChat">
-    <h4>Admin Chat</h4>
-    <ul id="orderList"></ul>
-    <button onclick="clearOrders()">Clear Orders</button>
-  </div>
-  <script type="module" src="hex-map-script.js"></script>
+
+<!-- Buttons for orders and registration -->
+<div style="position: absolute; bottom: 10px; left: 10px;">
+  <button onclick="submitOrder('attack')">⚔️ Attack Orders</button>
+  <button onclick="submitOrder('defense')">🛡️ Defense Orders</button>
+  <button onclick="submitOrder('economy')">📈 Bolster Economy</button>
+  <button onclick="submitOrder('spy')">🕵️ Spy Orders</button>
+  <button onclick="submitOrder('sabotage')">💣 Sabotage Orders</button>
+  <button onclick="registerNobleHouse()">🏰 Register Noble House</button>
+</div>
+
+<!-- Prompt for issuing an order -->
+<div id="orderPrompt" style="display:none; position:absolute; bottom:80px; left:10px; background:white; padding:10px; border:1px solid black;">
+  <label>Noble House: <input id="nobleHouseInput"></label><br>
+  <label>Target: <input id="targetInput"></label><br>
+  <button onclick="confirmOrder()">Submit</button>
+  <button onclick="cancelOrder()">Cancel</button>
+</div>
+
+<!-- Prompt for noble house registration -->
+<div id="registerPrompt" style="display:none; position:absolute; bottom:80px; left:10px; background:white; padding:10px; border:1px solid black;">
+  <label>Family Name: <input id="familyNameInput"></label><br>
+  <label>Domain: <input id="domainInput"></label><br>
+  <label>Heraldry: <input id="heraldryInput"></label><br>
+  <button onclick="confirmRegistration()">Register</button>
+  <button onclick="cancelRegistration()">Cancel</button>
+</div>
+
+<!-- Admin-only order list -->
+<div id="adminChat" style="display:none; position:absolute; bottom:10px; right:10px; width:300px; height:300px; overflow-y:scroll; background:#eee; border:1px solid #999; padding:10px;">
+  <h3>Admin Orders</h3>
+  <ul id="orderList" style="list-style:none; padding:0;"></ul>
+  <button onclick="clearOrders()">Clear Orders</button>
+</div>
+
+<!-- Canvas and tooltip for hex map -->
+<canvas id="hexMap"></canvas>
+<div id="tooltip"></div>
+
+<!-- Login interface -->
+<div style="position:absolute; top:10px; left:10px; background:white; padding:10px; border:1px solid black;">
+  <input id="email" placeholder="Email">
+  <input id="password" type="password" placeholder="Password">
+  <button onclick="login()">Login</button>
+  <button onclick="logout()">Logout</button>
+</div>
+
+<!-- Correct script reference -->
+<script type="module" src="hex-map-script.js"></script>
+
 </body>
 </html>
