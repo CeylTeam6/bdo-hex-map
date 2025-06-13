@@ -2,72 +2,131 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Hex Map</title>
+  <title>BDO Hex Map</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel&display=swap" rel="stylesheet">
   <style>
-    body, html {
+    body {
       margin: 0;
-      padding: 0;
+      font-family: 'Cinzel', serif;
       overflow: hidden;
     }
-    #tooltip {
-      display: none;
+
+    #hexMap {
+      display: block;
+    }
+
+    #tooltip, #lordPanel {
       position: absolute;
-      background: white;
-      border: 1px solid black;
-      padding: 5px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 2px solid #444;
+      border-radius: 8px;
+      padding: 10px;
+      z-index: 10;
+      font-family: 'Cinzel', serif;
+      max-width: 220px;
+    }
+
+    #lordPanel {
+      width: 220px;
+    }
+
+    #lordPanel video {
+      width: 100%;
+      border-radius: 6px;
+      margin-bottom: 6px;
+    }
+
+    #orderPrompt, #registerPrompt {
+      position: absolute;
+      bottom: 80px;
+      left: 10px;
+      background: rgba(255,255,255,0.95);
+      padding: 10px;
+      border: 2px solid #333;
+      border-radius: 6px;
+      z-index: 5;
+    }
+
+    #adminChat {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 300px;
+      height: 200px;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      overflow-y: auto;
+      padding: 10px;
+      font-family: 'Cinzel', serif;
+    }
+
+    #orderControls {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      background: rgba(255,255,255,0.9);
+      padding: 10px;
+      z-index: 4;
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      font-family: 'Cinzel', serif;
+    }
+
+    #orderList {
+      list-style: none;
+      padding-left: 10px;
+    }
+
+    input, button {
+      font-family: 'Cinzel', serif;
     }
   </style>
 </head>
 <body>
+  <canvas id="hexMap"></canvas>
 
-<!-- Buttons for orders and registration -->
-<div style="position: absolute; bottom: 10px; left: 10px;">
-  <button onclick="submitOrder('attack')">⚔️ Attack Orders</button>
-  <button onclick="submitOrder('defense')">🛡️ Defense Orders</button>
-  <button onclick="submitOrder('economy')">📈 Bolster Economy</button>
-  <button onclick="submitOrder('spy')">🕵️ Spy Orders</button>
-  <button onclick="submitOrder('sabotage')">💣 Sabotage Orders</button>
-  <button onclick="registerNobleHouse()">🏰 Register Noble House</button>
-</div>
+  <div id="tooltip" style="display:none;"></div>
+  <div id="lordPanel" style="display:none;">
+    <video id="lordVideo" autoplay muted loop></video>
+    <div><strong id="lordName"></strong></div>
+    <div id="lordInfo"></div>
+  </div>
 
-<!-- Prompt for issuing an order -->
-<div id="orderPrompt" style="display:none; position:absolute; bottom:80px; left:10px; background:white; padding:10px; border:1px solid black;">
-  <label>Noble House: <input id="nobleHouseInput"></label><br>
-  <label>Target: <input id="targetInput"></label><br>
-  <button onclick="confirmOrder()">Submit</button>
-  <button onclick="cancelOrder()">Cancel</button>
-</div>
+  <div id="orderPrompt" style="display:none;">
+    <label>Noble House: <input id="nobleHouseInput"></label><br>
+    <label>Target: <input id="targetInput"></label><br>
+    <button onclick="confirmOrder()">Submit</button>
+    <button onclick="cancelOrder()">Cancel</button>
+  </div>
 
-<!-- Prompt for noble house registration -->
-<div id="registerPrompt" style="display:none; position:absolute; bottom:80px; left:10px; background:white; padding:10px; border:1px solid black;">
-  <label>Family Name: <input id="familyNameInput"></label><br>
-  <label>Domain: <input id="domainInput"></label><br>
-  <label>Heraldry: <input id="heraldryInput"></label><br>
-  <button onclick="confirmRegistration()">Register</button>
-  <button onclick="cancelRegistration()">Cancel</button>
-</div>
+  <div id="registerPrompt" style="display:none;">
+    <label>Family Name: <input id="familyNameInput"></label><br>
+    <label>Domain: <input id="domainInput"></label><br>
+    <label>Heraldry: <input id="heraldryInput"></label><br>
+    <button onclick="confirmRegistration()">Register</button>
+    <button onclick="cancelRegistration()">Cancel</button>
+  </div>
 
-<!-- Admin-only order list -->
-<div id="adminChat" style="display:none; position:absolute; bottom:10px; right:10px; width:300px; height:300px; overflow-y:scroll; background:#eee; border:1px solid #999; padding:10px;">
-  <h3>Admin Orders</h3>
-  <ul id="orderList" style="list-style:none; padding:0;"></ul>
-  <button onclick="clearOrders()">Clear Orders</button>
-</div>
+  <div id="orderControls">
+    <button onclick="submitOrder('attack')">⚔️ Attack</button>
+    <button onclick="submitOrder('defense')">🛡️ Defense</button>
+    <button onclick="submitOrder('economy')">📈 Bolster Economy</button>
+    <button onclick="submitOrder('spy')">🕵️ Spy</button>
+    <button onclick="submitOrder('sabotage')">💣 Sabotage</button>
+    <button onclick="submitOrder('diplomacy')">🕊️ Diplomacy</button>
+    <button onclick="registerNobleHouse()">🏰 Register House</button>
+  </div>
 
-<!-- Canvas and tooltip for hex map -->
-<canvas id="hexMap"></canvas>
-<div id="tooltip"></div>
+  <div id="adminChat" style="display:none;">
+    <input id="email" placeholder="Email"><br>
+    <input id="password" type="password" placeholder="Password"><br>
+    <button onclick="login()">Login</button>
+    <button onclick="logout()">Logout</button>
+    <ul id="orderList"></ul>
+    <button onclick="clearOrders()">Clear Orders</button>
+  </div>
 
-<!-- Login interface -->
-<div style="position:absolute; top:10px; left:10px; background:white; padding:10px; border:1px solid black;">
-  <input id="email" placeholder="Email">
-  <input id="password" type="password" placeholder="Password">
-  <button onclick="login()">Login</button>
-  <button onclick="logout()">Logout</button>
-</div>
-
-<!-- Correct script reference -->
-<script type="module" src="hex-map-script.js"></script>
-
+  <script type="module" src="hex-map-script.js"></script>
 </body>
 </html>
