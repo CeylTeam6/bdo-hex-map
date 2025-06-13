@@ -32,6 +32,7 @@ let hoveredHexKey = null;
 onAuthStateChanged(auth, user => {
   isAdmin = !!user;
   document.getElementById("adminChat").style.display = isAdmin ? "block" : "none";
+  document.getElementById("loginBox").style.display = "block";
   if (isAdmin) loadOrders();
 });
 
@@ -123,21 +124,19 @@ window.cancelRegistration = () => {
 };
 
 let highlightedOrders = [];
+const hexGrid = {};
 
 function highlightOrderTargets(orderData) {
   clearOrderHighlights();
   const keys = Object.keys(hexGrid);
-  const targetMatch = keys.find(k => {
-    const { title } = hexGrid[k];
-    return title.toLowerCase().includes(orderData.target.toLowerCase());
-  });
+  const targetMatch = keys.find(k => hexGrid[k].title.toLowerCase().includes(orderData.target.toLowerCase()));
 
   if (targetMatch) {
     const hex = hexGrid[targetMatch];
     highlightedOrders.push({ key: targetMatch, originalColor: hex.color });
     hex.color = "rgba(255, 0, 0, 0.5)";
-    render();
   }
+  render();
 }
 
 function clearOrderHighlights() {
@@ -176,8 +175,6 @@ window.clearOrders = async () => {
 const canvas = document.getElementById("hexMap");
 const ctx = canvas.getContext("2d");
 const hexSize = 60;
-const hexWidth = Math.sqrt(3) * hexSize;
-const hexHeight = 2 * hexSize;
 const background = new Image();
 background.src = "BDOMAP.jpg?v=" + Date.now();
 
@@ -186,8 +183,6 @@ const lordPanel = document.getElementById("lordPanel");
 const lordName = document.getElementById("lordName");
 const lordInfo = document.getElementById("lordInfo");
 const lordVideo = document.getElementById("lordVideo");
-
-const hexGrid = {};
 
 function hexToPixel(q, r) {
   const x = hexSize * Math.sqrt(3) * (q + r / 2);
@@ -223,14 +218,13 @@ function drawHex(x, y, color = "rgba(0,0,0,0)", label = "", isHovered = false) {
     else ctx.lineTo(px, py);
   }
   ctx.closePath();
-  ctx.strokeStyle = isHovered ? "gold" : "rgba(0,0,0,0.7)";
+  ctx.strokeStyle = isHovered ? "yellow" : "rgba(0,0,0,0.7)";
   ctx.lineWidth = isHovered ? 4 : 2;
   ctx.stroke();
   if (color !== "rgba(0,0,0,0)") {
     ctx.fillStyle = color;
     ctx.fill();
   }
-
   if (label) {
     ctx.fillStyle = "#000";
     ctx.font = "bold 16px 'Cinzel', serif";
@@ -247,41 +241,6 @@ function render() {
     drawHex(x, y, color, key, key === hoveredHexKey);
   });
 }
-
-canvas.addEventListener("mousemove", (e) => {
-  const rect = canvas.getBoundingClientRect();
-  const mouseX = e.clientX - rect.left;
-  const mouseY = e.clientY - rect.top;
-  const { q, r } = pixelToHex(mouseX, mouseY);
-  const key = `${q},${r}`;
-  const hex = hexGrid[key];
-  hoveredHexKey = hex ? key : null;
-  render();
-
-  if (hex) {
-    tooltip.style.display = "block";
-    tooltip.style.left = `${e.clientX + 10}px`;
-    tooltip.style.top = `${e.clientY + 10}px`;
-    tooltip.innerHTML = `<strong style="font-family: Cinzel, serif;">${hex.title}</strong><br><span style="font-family: Cinzel, serif;">${hex.info}</span>` +
-      (hex.image ? `<br><img src="${hex.image}" style="width:100px;">` : "");
-
-    lordPanel.style.display = "block";
-    const panelHeight = 150;
-    const topPos = e.clientY - panelHeight - 20;
-    lordPanel.style.left = `${e.clientX + 10}px`;
-    lordPanel.style.top = `${Math.max(0, topPos)}px`;
-    lordName.textContent = hex.lord || "Unknown Lord";
-    lordInfo.textContent = hex.lordInfo || "";
-    lordName.style.fontFamily = lordInfo.style.fontFamily = "Cinzel, serif";
-    lordVideo.src = hex.lordVideo || "";
-    lordVideo.loop = true;
-    lordVideo.play();
-  } else {
-    tooltip.style.display = "none";
-    lordPanel.style.display = "none";
-    lordVideo.pause();
-  }
-});
 
 canvas.addEventListener("click", async (e) => {
   if (!isAdmin) return alert("You must be logged in to edit.");
@@ -302,6 +261,38 @@ canvas.addEventListener("click", async (e) => {
 
   hexGrid[key] = { q, r, title, info, image, color, lord, lordInfo: lordInfoText, lordVideo: lordVideoURL };
   await setDoc(doc(db, "hexTiles", key), hexGrid[key]);
+  render();
+});
+
+canvas.addEventListener("mousemove", (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  const { q, r } = pixelToHex(mouseX, mouseY);
+  const key = `${q},${r}`;
+  hoveredHexKey = key;
+  const hex = hexGrid[key];
+
+  if (hex) {
+    lordPanel.style.display = "block";
+    lordPanel.style.left = `${e.clientX + 10}px`;
+    lordPanel.style.top = `${e.clientY - 130}px`;
+    lordName.textContent = hex.lord || "Unknown Lord";
+    lordInfo.textContent = hex.lordInfo || "";
+    lordVideo.src = hex.lordVideo || "";
+    lordVideo.loop = true;
+    lordVideo.play();
+
+    tooltip.style.display = "block";
+    tooltip.style.left = `${e.clientX + 10}px`;
+    tooltip.style.top = `${e.clientY + 60}px`;
+    tooltip.innerHTML = `<strong>${hex.title}</strong><br>${hex.info}` +
+      (hex.image ? `<br><img src="${hex.image}" style="width:100px;">` : "");
+  } else {
+    tooltip.style.display = "none";
+    lordPanel.style.display = "none";
+    lordVideo.pause();
+  }
   render();
 });
 
