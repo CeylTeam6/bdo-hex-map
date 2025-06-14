@@ -69,7 +69,7 @@ window.toggleView = () => {
   document.getElementById("advTooltip").style.display = "none";
   updateRankUI();
   if (inAdventureView) {
-    renderAdventureGrid(false);
+    renderAdventureGrid();
   } else {
     render();
   }
@@ -123,13 +123,17 @@ window.confirmRegistration = async () => {
   const family = document.getElementById("familyNameInput").value;
   const domain = document.getElementById("domainInput").value;
   const heraldry = document.getElementById("heraldryInput").value;
-  const message = `🏰 Noble House Registered:\nFamily: ${family}\nDomain: ${domain}\nHeraldry: ${heraldry}`;
+  // FIX: don't use undefined values
+  const msgFamily = family ? family : "(none)";
+  const msgDomain = domain ? domain : "(none)";
+  const msgHeraldry = heraldry ? heraldry : "(none)";
+  const message = `🏰 Noble House Registered:\nFamily: ${msgFamily}\nDomain: ${msgDomain}\nHeraldry: ${msgHeraldry}`;
 
   await addDoc(collection(db, "orders"), {
     type: "registration",
-    family,
-    domain,
-    heraldry,
+    family: msgFamily,
+    domain: msgDomain,
+    heraldry: msgHeraldry,
     message,
     timestamp: Date.now()
   });
@@ -150,7 +154,28 @@ window.cancelRegistration = () => {
 let highlightedOrders = [];
 const hexGrid = {};
 
-// --- FIXED loadOrders FUNCTION ---
+function highlightOrderTargets(orderData) {
+  clearOrderHighlights();
+  const keys = Object.keys(hexGrid);
+  const targetMatch = keys.find(k => hexGrid[k].title && hexGrid[k].title.toLowerCase().includes((orderData.target || '').toLowerCase()));
+  if (targetMatch) {
+    const hex = hexGrid[targetMatch];
+    highlightedOrders.push({ key: targetMatch, originalColor: hex.color });
+    hex.color = "rgba(255, 0, 0, 0.5)";
+  }
+  render();
+}
+
+function clearOrderHighlights() {
+  highlightedOrders.forEach(({ key, originalColor }) => {
+    if (hexGrid[key]) {
+      hexGrid[key].color = originalColor;
+    }
+  });
+  highlightedOrders = [];
+  render();
+}
+
 window.loadOrders = async () => {
   const list = document.getElementById("orderList");
   list.innerHTML = "";
@@ -158,17 +183,12 @@ window.loadOrders = async () => {
   querySnapshot.forEach(doc => {
     const data = doc.data();
     const li = document.createElement("li");
-    if (data.type === "registration") {
-      li.textContent = `[Registration] Family: ${data.family || ""}, Domain: ${data.domain || ""}, Heraldry: ${data.heraldry || ""}`;
-    } else {
-      li.textContent = `[${data.type}] ${data.house || ""} -> ${data.target || ""}`;
-    }
+    li.textContent = `[${data.type}] ${data.house ? data.house : ''} -> ${data.target ? data.target : ''}`;
     li.style.cursor = "pointer";
     li.onclick = () => highlightOrderTargets(data);
     list.appendChild(li);
   });
 };
-// --- END FIX ---
 
 window.clearOrders = async () => {
   const querySnapshot = await getDocs(collection(db, "orders"));
@@ -281,10 +301,10 @@ canvas.addEventListener("mousemove", (e) => {
   const hex = hexGrid[key];
 
   if (hex) {
-    // LordPanel 80px further above tooltip
+    // LordPanel: slightly down (from previous version)
     lordPanel.style.display = "block";
     lordPanel.style.left = `${e.clientX + 10}px`;
-    lordPanel.style.top = `${e.clientY - 200}px`;
+    lordPanel.style.top = `${e.clientY - 145}px`; // ~55px above tooltip now
     lordName.textContent = hex.lord || "Unknown Lord";
     lordInfo.textContent = hex.lordInfo || "";
     lordVideo.src = hex.lordVideo || "";
@@ -337,8 +357,24 @@ let adventureBg = new Image();
 adventureBg.src = "adventure.jpg";
 adventureBg.onload = () => {
   adventureBgLoaded = true;
-  renderAdventureGrid(false);
+  renderAdventureGrid();
 };
+
+// --- ADVENTURE GRID FIRESTORE LOGIC ---
+
+// Save one cell
+async function saveAdventureCell(key, data) {
+  await setDoc(doc(db, "adventureCells", key), data);
+}
+
+// Load all cells
+async function loadAdventureGrid() {
+  const snap = await getDocs(collection(db, "adventureCells"));
+  snap.forEach(docSnap => {
+    adventureGrid[docSnap.id] = docSnap.data();
+  });
+  renderAdventureGrid();
+}
 
 function renderAdventureGrid() {
   actx.clearRect(0, 0, adventureCanvas.width, adventureCanvas.height);
@@ -361,7 +397,6 @@ function renderAdventureGrid() {
       actx.lineWidth = 1.5;
       actx.strokeRect(x, y, cellSize, cellSize);
       // No more type in box! We'll use overlay instead.
-      // No images drawn here; they go in overlay as well.
     }
   }
   // Draw hover highlight
@@ -387,8 +422,10 @@ adventureCanvas.addEventListener("click", async (e) => {
   const type = prompt("Enter Mission Type:", existing.type || "");
   const details = prompt("Enter Mission Details:", existing.details || "");
   const image = prompt("Enter Image URL:", existing.image || "");
-  adventureGrid[key] = { type, details, image, color: "rgba(0,255,0,0.2)" };
-  renderAdventureGrid(false);
+  const cellData = { type, details, image, color: "rgba(0,255,0,0.2)" };
+  adventureGrid[key] = cellData;
+  await saveAdventureCell(key, cellData); // Save to Firestore!
+  renderAdventureGrid();
 });
 
 adventureCanvas.addEventListener("mousemove", (e) => {
@@ -397,11 +434,11 @@ adventureCanvas.addEventListener("mousemove", (e) => {
   if (c < 0 || r < 0 || c >= gridCols || r >= gridRows) {
     advHover = null;
     document.getElementById("advTooltip").style.display = "none";
-    renderAdventureGrid(false);
+    renderAdventureGrid();
     return;
   }
   advHover = { c, r };
-  renderAdventureGrid(false);
+  renderAdventureGrid();
 
   // Show adventure tooltip overlay
   const key = `${c},${r}`;
@@ -459,6 +496,7 @@ window.onload = () => {
   adventureCanvas.width = window.innerWidth;
   adventureCanvas.height = window.innerHeight;
   render();
-  renderAdventureGrid(false);
+  renderAdventureGrid();
   updateRankUI();
+  loadAdventureGrid();
 };
