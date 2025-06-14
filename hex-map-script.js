@@ -150,29 +150,7 @@ window.cancelRegistration = () => {
 let highlightedOrders = [];
 const hexGrid = {};
 
-function highlightOrderTargets(orderData) {
-  clearOrderHighlights();
-  const keys = Object.keys(hexGrid);
-  const targetMatch = keys.find(k => hexGrid[k].title.toLowerCase().includes(orderData.target.toLowerCase()));
-
-  if (targetMatch) {
-    const hex = hexGrid[targetMatch];
-    highlightedOrders.push({ key: targetMatch, originalColor: hex.color });
-    hex.color = "rgba(255, 0, 0, 0.5)";
-  }
-  render();
-}
-
-function clearOrderHighlights() {
-  highlightedOrders.forEach(({ key, originalColor }) => {
-    if (hexGrid[key]) {
-      hexGrid[key].color = originalColor;
-    }
-  });
-  highlightedOrders = [];
-  render();
-}
-
+// --- FIXED loadOrders FUNCTION ---
 window.loadOrders = async () => {
   const list = document.getElementById("orderList");
   list.innerHTML = "";
@@ -180,12 +158,17 @@ window.loadOrders = async () => {
   querySnapshot.forEach(doc => {
     const data = doc.data();
     const li = document.createElement("li");
-    li.textContent = `[${data.type}] ${data.house} -> ${data.target}`;
+    if (data.type === "registration") {
+      li.textContent = `[Registration] Family: ${data.family || ""}, Domain: ${data.domain || ""}, Heraldry: ${data.heraldry || ""}`;
+    } else {
+      li.textContent = `[${data.type}] ${data.house || ""} -> ${data.target || ""}`;
+    }
     li.style.cursor = "pointer";
     li.onclick = () => highlightOrderTargets(data);
     list.appendChild(li);
   });
 };
+// --- END FIX ---
 
 window.clearOrders = async () => {
   const querySnapshot = await getDocs(collection(db, "orders"));
@@ -479,4 +462,3 @@ window.onload = () => {
   renderAdventureGrid(false);
   updateRankUI();
 };
-
