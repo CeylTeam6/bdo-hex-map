@@ -301,7 +301,7 @@ canvas.addEventListener("mousemove", (e) => {
     // LordPanel 80px further above tooltip
     lordPanel.style.display = "block";
     lordPanel.style.left = `${e.clientX + 10}px`;
-    lordPanel.style.top = `${e.clientY - 180}px`;
+    lordPanel.style.top = `${e.clientY - 200}px`;
     lordName.textContent = hex.lord || "Unknown Lord";
     lordInfo.textContent = hex.lordInfo || "";
     lordVideo.src = hex.lordVideo || "";
