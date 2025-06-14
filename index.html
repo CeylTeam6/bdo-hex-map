@@ -2,161 +2,195 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>BDO Hex Map</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+  <title>BDO Hex Map & Adventure Board</title>
+  <link href="https://fonts.googleapis.com/css?family=Cinzel:700,400" rel="stylesheet">
   <style>
-    body {
-      margin: 0;
-      overflow: hidden;
+    html, body {
+      margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden;
       font-family: 'Cinzel', serif;
+      background: #222;
     }
-
-    #hexMap {
-      display: block;
-    }
-
-    #tooltip, #lordPanel {
+    #hexMap, #adventureGrid {
       position: absolute;
-      background-color: rgba(255,255,255,0.9);
-      border: 1px solid #000;
-      padding: 6px;
-      font-family: 'Cinzel', serif;
-      z-index: 10;
-      max-width: 250px;
+      left: 0; top: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      z-index: 0;
+      background: transparent;
+    }
+    #tooltip, #advTooltip {
+      position: absolute;
+      display: none;
+      min-width: 180px;
+      background: #eee;
+      color: #222;
+      border: 2px solid #444;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px #000a;
+      padding: 8px 12px;
+      font-size: 15px;
+      z-index: 1001;
       pointer-events: none;
     }
-
-    #lordPanel video {
-      width: 100%;
-      max-height: 120px;
+    #lordPanel {
+      position: absolute;
+      display: none;
+      min-width: 210px;
+      min-height: 80px;
+      background: #444;
+      color: #fff;
+      border: 2px solid #a97b36;
+      border-radius: 14px;
+      box-shadow: 0 12px 42px #000a;
+      padding: 12px 18px 10px 18px;
+      font-family: 'Cinzel', serif;
+      z-index: 1002;
+      pointer-events: none;
     }
-
+    #lordName { font-size: 19px; font-weight: bold; margin-bottom: 5px;}
+    #lordInfo { font-size: 14px; margin-bottom: 5px;}
+    #lordVideo { display: block; width: 120px; height: 80px; border-radius: 8px; margin-top: 6px;}
     #adminChat {
-      position: absolute;
-      bottom: 0;
-      right: 0;
-      width: 300px;
-      max-height: 300px;
-      background: rgba(255,255,255,0.9);
-      border: 1px solid black;
-      overflow-y: auto;
-      padding: 8px;
       display: none;
-      font-family: 'Cinzel', serif;
-      z-index: 20;
+      position: absolute; right: 22px; bottom: 18px; width: 260px; background: #212;
+      color: #fff; border-radius: 14px; border: 2px solid #666; box-shadow: 0 3px 22px #000b;
+      z-index: 100; padding: 10px;
+      font-size: 14px;
     }
-
-    #loginBox {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background: rgba(255,255,255,0.9);
-      padding: 8px;
-      border: 1px solid black;
-      font-family: 'Cinzel', serif;
-      z-index: 20;
-    }
-
-    #orderButtons {
-      position: absolute;
-      bottom: 10px;
-      left: 10px;
-      background: rgba(255,255,255,0.9);
-      padding: 10px;
-      border: 1px solid black;
-      font-family: 'Cinzel', serif;
-      z-index: 20;
-    }
-
+    #orderList { padding: 0; margin: 0; max-height: 120px; overflow-y: auto; }
+    #orderList li { list-style: none; margin-bottom: 6px; cursor: pointer; }
     #orderPrompt, #registerPrompt {
-      position: absolute;
-      top: 100px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: white;
-      border: 2px solid black;
-      padding: 16px;
-      font-family: 'Cinzel', serif;
-      display: none;
-      z-index: 25;
+      position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%);
+      background: #fff; color: #222; padding: 24px 28px 18px 28px; border-radius: 16px; border: 2px solid #444;
+      box-shadow: 0 12px 32px #000a; font-size: 18px; display: none; z-index: 2002;
     }
-
-    button {
-      font-family: 'Cinzel', serif;
-      margin: 4px;
-      padding: 6px 12px;
+    #loginBox {
+      position: absolute; left: 22px; top: 24px; background: #eee; border-radius: 11px; box-shadow: 0 2px 11px #0008;
+      border: 1.5px solid #777; padding: 14px 16px; z-index: 2001; font-size: 15px;
     }
-
-    input {
-      font-family: 'Cinzel', serif;
-      margin: 4px;
+    #hexButtons, #adventureButtons {
+      position: absolute; left: 22px; bottom: 28px; display: flex; flex-direction: column; z-index: 100;
+      background: rgba(240,240,240,0.97); border-radius: 16px; box-shadow: 0 2px 12px #0002;
+      padding: 11px 18px 11px 13px;
+    }
+    #hexButtons button, #adventureButtons button, #assignRanks button {
+      font-family: 'Cinzel', serif; font-size: 16px; border-radius: 10px;
+      background: #d2a85c; color: #222; border: none; margin: 4px 0 0 0; padding: 6px 16px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    #hexButtons button:hover, #adventureButtons button:hover, #assignRanks button:hover { background: #b78b39; }
+    #adventureButtons { flex-direction: column; left: 22px; bottom: 28px; }
+    #toggleViewBtn {
+      position: absolute; top: 18px; right: 22px; font-family: 'Cinzel', serif; font-size: 18px;
+      border-radius: 12px; border: none; background: #444; color: #ffd77a; padding: 8px 22px; z-index: 201;
+      cursor: pointer; font-weight: bold; box-shadow: 0 2px 10px #0006;
+    }
+    #toggleViewBtn:hover { background: #222; }
+    #assignRanks {
+      position: absolute; right: 28px; top: 88px; background: #2a1f13d9; border-radius: 10px;
+      border: 2px solid #d2a85c; color: #fff; padding: 13px 15px 10px 18px; font-family: 'Cinzel', serif; min-width: 220px;
+      box-shadow: 0 6px 24px #000b; z-index: 90;
+    }
+    #assignRanks button { margin: 2px 8px 2px 0; padding: 3px 12px; font-size: 15px; }
+    #assignRanks div { margin-bottom: 4px; }
+    @media (max-width: 900px) {
+      #adminChat, #assignRanks { width: 90vw; left: 4vw; right: unset; }
+      #assignRanks { min-width: unset; }
     }
   </style>
 </head>
 <body>
-  <canvas id="hexMap"></canvas>
 
-  <div id="tooltip" style="display:none;"></div>
-  <div id="lordPanel" style="display:none;">
-    <div id="lordName"><strong>Lord Name</strong></div>
-    <div id="lordInfo">Info</div>
-    <video id="lordVideo" muted autoplay loop></video>
-  </div>
+  <!-- Toggling View -->
+  <button id="toggleViewBtn" onclick="toggleView()">Switch Board</button>
 
+  <!-- Login Box -->
   <div id="loginBox">
-    <div><input id="email" type="email" placeholder="Email"></div>
-    <div><input id="password" type="password" placeholder="Password"></div>
-    <div>
-      <button onclick="login()">Login</button>
-      <button onclick="logout()">Logout</button>
-    </div>
+    <div style="margin-bottom: 7px;"><b>Login</b></div>
+    <input type="email" id="email" placeholder="Email" style="margin-bottom:4px;"><br>
+    <input type="password" id="password" placeholder="Password"><br>
+    <button onclick="login()" style="margin-top: 6px;">Login</button>
+    <button onclick="logout()" style="margin-top: 6px;">Logout</button>
   </div>
 
-  <div id="adminChat">
-    <h4>Admin Orders</h4>
-    <ul id="orderList"></ul>
-    <button onclick="clearOrders()">Clear All Orders</button>
-  </div>
-
-  <div id="orderButtons">
-    <button onclick="submitOrder('attack')">⚔️ Attack</button>
-    <button onclick="submitOrder('defense')">🛡️ Defend</button>
-    <button onclick="submitOrder('economy')">📈 Bolster Economy</button>
-    <button onclick="submitOrder('spy')">🕵️ Spy</button>
-    <button onclick="submitOrder('sabotage')">💣 Sabotage</button>
-    <button onclick="submitOrder('diplomacy')">🕊️ Diplomacy</button>
-    <button onclick="registerNobleHouse()">🏰 Register House</button>
-  </div>
-
+  <!-- Order / Register Prompts -->
   <div id="orderPrompt">
-    <div>
-      Noble House: <input id="nobleHouseInput" type="text">
-    </div>
-    <div>
-      Target: <input id="targetInput" type="text">
-    </div>
-    <div>
-      <button onclick="confirmOrder()">Confirm</button>
-      <button onclick="cancelOrder()">Cancel</button>
-    </div>
+    <div>Submit an Order:</div>
+    <label>Noble House:<br><input id="nobleHouseInput" style="width:160px"></label><br>
+    <label>Target:<br><input id="targetInput" style="width:160px"></label><br>
+    <button onclick="confirmOrder()" style="margin-right:8px;">Submit</button>
+    <button onclick="cancelOrder()">Cancel</button>
   </div>
-
   <div id="registerPrompt">
-    <div>
-      Family Name: <input id="familyNameInput" type="text">
+    <div>Register Noble House:</div>
+    <label>Family Name:<br><input id="familyNameInput" style="width:160px"></label><br>
+    <label>Domain:<br><input id="domainInput" style="width:160px"></label><br>
+    <label>Heraldry:<br><input id="heraldryInput" style="width:160px"></label><br>
+    <button onclick="confirmRegistration()" style="margin-right:8px;">Register</button>
+    <button onclick="cancelRegistration()">Cancel</button>
+  </div>
+
+  <!-- Main Map & Adventure Grid -->
+  <div id="hexCanvasContainer" style="width:100vw; height:100vh;">
+    <canvas id="hexMap" width="1920" height="1080"></canvas>
+    <div id="hexButtons">
+      <button onclick="submitOrder('attack')">⚔️ Attack</button>
+      <button onclick="submitOrder('defense')">🛡️ Defense</button>
+      <button onclick="submitOrder('economy')">📈 Economy</button>
+      <button onclick="submitOrder('spy')">🕵️ Spy</button>
+      <button onclick="submitOrder('sabotage')">💣 Sabotage</button>
+      <button onclick="submitOrder('diplomacy')">🕊️ Diplomacy</button>
+      <button onclick="registerNobleHouse()" style="margin-top:12px;">Register House</button>
     </div>
-    <div>
-      Domain: <input id="domainInput" type="text">
-    </div>
-    <div>
-      Heraldry Description: <input id="heraldryInput" type="text">
-    </div>
-    <div>
-      <button onclick="confirmRegistration()">Register</button>
-      <button onclick="cancelRegistration()">Cancel</button>
+    <!-- Tooltip and Lord Panel -->
+    <div id="tooltip"></div>
+    <div id="lordPanel">
+      <div id="lordName"></div>
+      <div id="lordInfo"></div>
+      <video id="lordVideo" muted autoplay loop></video>
     </div>
   </div>
 
+  <div id="adventureCanvasContainer" style="width:100vw; height:100vh; display:none;">
+    <canvas id="adventureGrid" width="1920" height="1080"></canvas>
+    <div id="adventureButtons" style="display:none;">
+      <button onclick="submitAdventureMission()">Mission Request</button>
+      <button onclick="registerForMission()">Register for Mission</button>
+    </div>
+    <!-- Adventurer Rankings (now up higher) -->
+    <div id="assignRanks" style="display:none;">
+      <div style="font-weight:bold; font-size:16px; margin-bottom:6px;">Adventurer Ranks:</div>
+      <div>
+        <button id="addRankS" onclick="assignRank('S')">Add S</button> <span id="rankS"></span>
+      </div>
+      <div>
+        <button id="addRankA" onclick="assignRank('A')">Add A</button> <span id="rankA"></span>
+      </div>
+      <div>
+        <button id="addRankB" onclick="assignRank('B')">Add B</button> <span id="rankB"></span>
+      </div>
+      <div>
+        <button id="addRankC" onclick="assignRank('C')">Add C</button> <span id="rankC"></span>
+      </div>
+      <div>
+        <button id="addRankD" onclick="assignRank('D')">Add D</button> <span id="rankD"></span>
+      </div>
+      <div>
+        <button id="addRankE" onclick="assignRank('E')">Add E</button> <span id="rankE"></span>
+      </div>
+    </div>
+    <div id="advTooltip"></div>
+  </div>
+
+  <!-- Admin Orders/Chat Box -->
+  <div id="adminChat">
+    <div style="font-weight:bold; margin-bottom:6px;">Admin Order Log</div>
+    <ul id="orderList"></ul>
+    <button onclick="clearOrders()" style="margin-top:8px;">Clear All Orders</button>
+  </div>
+
+  <!-- Load your script -->
   <script type="module" src="hex-map-script.js"></script>
 </body>
 </html>

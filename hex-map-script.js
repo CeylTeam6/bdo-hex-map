@@ -28,11 +28,19 @@ const db = getFirestore(app);
 
 let isAdmin = false;
 let hoveredHexKey = null;
+let inAdventureView = false;
+let currentOrderType = null;
+
+let adventureRanks = { S: [], A: [], B: [], C: [], D: [], E: [] };
 
 onAuthStateChanged(auth, user => {
   isAdmin = !!user;
   document.getElementById("adminChat").style.display = isAdmin ? "block" : "none";
   document.getElementById("loginBox").style.display = "block";
+  document.getElementById("hexButtons").style.display = (inAdventureView ? "none" : "flex");
+  document.getElementById("adventureButtons").style.display = (inAdventureView ? "flex" : "none");
+  document.getElementById("assignRanks").style.display = inAdventureView ? "block" : "none";
+  updateRankUI();
   if (isAdmin) loadOrders();
 });
 
@@ -49,8 +57,23 @@ window.logout = () => {
   alert("Logged out.");
 };
 
-// Order logic
-let currentOrderType = null;
+window.toggleView = () => {
+  inAdventureView = !inAdventureView;
+  document.getElementById("hexCanvasContainer").style.display = inAdventureView ? "none" : "block";
+  document.getElementById("adventureCanvasContainer").style.display = inAdventureView ? "block" : "none";
+  document.getElementById("hexButtons").style.display = inAdventureView ? "none" : "flex";
+  document.getElementById("adventureButtons").style.display = inAdventureView ? "flex" : "none";
+  document.getElementById("assignRanks").style.display = inAdventureView ? "block" : "none";
+  document.getElementById("tooltip").style.display = "none";
+  document.getElementById("lordPanel").style.display = "none";
+  document.getElementById("advTooltip").style.display = "none";
+  updateRankUI();
+  if (inAdventureView) {
+    renderAdventureGrid(false);
+  } else {
+    render();
+  }
+};
 
 window.submitOrder = (type) => {
   currentOrderType = type;
@@ -91,7 +114,7 @@ window.cancelOrder = () => {
   document.getElementById("orderPrompt").style.display = "none";
 };
 
-// Register Noble House logic
+// Noble House Registration
 window.registerNobleHouse = () => {
   document.getElementById("registerPrompt").style.display = "block";
 };
@@ -123,6 +146,7 @@ window.cancelRegistration = () => {
   document.getElementById("registerPrompt").style.display = "none";
 };
 
+// Order Log
 let highlightedOrders = [];
 const hexGrid = {};
 
@@ -171,7 +195,7 @@ window.clearOrders = async () => {
   document.getElementById("orderList").innerHTML = "";
 };
 
-// Canvas & Hex logic
+// --- HEX MAP LOGIC ---
 const canvas = document.getElementById("hexMap");
 const ctx = canvas.getContext("2d");
 const hexSize = 60;
@@ -274,9 +298,10 @@ canvas.addEventListener("mousemove", (e) => {
   const hex = hexGrid[key];
 
   if (hex) {
+    // LordPanel 80px further above tooltip
     lordPanel.style.display = "block";
     lordPanel.style.left = `${e.clientX + 10}px`;
-    lordPanel.style.top = `${e.clientY - 130}px`;
+    lordPanel.style.top = `${e.clientY - 110}px`;
     lordName.textContent = hex.lord || "Unknown Lord";
     lordInfo.textContent = hex.lordInfo || "";
     lordVideo.src = hex.lordVideo || "";
@@ -310,3 +335,148 @@ background.onload = () => {
   canvas.height = window.innerHeight;
   loadGrid();
 };
+
+// ------------------ ADVENTURE GRID LOGIC ------------------
+const adventureCanvas = document.getElementById("adventureGrid");
+const actx = adventureCanvas.getContext("2d");
+const gridCols = 10;
+const gridRows = 10;
+const cellSize = 100;
+const canvasWidth = window.innerWidth;
+const canvasHeight = window.innerHeight;
+const offsetX = (canvasWidth - gridCols * cellSize) / 2;
+const offsetY = (canvasHeight - gridRows * cellSize) / 2;
+
+let adventureGrid = {};
+let advHover = null;
+let adventureBgLoaded = false;
+let adventureBg = new Image();
+adventureBg.src = "adventure.jpg";
+adventureBg.onload = () => {
+  adventureBgLoaded = true;
+  renderAdventureGrid(false);
+};
+
+function renderAdventureGrid() {
+  actx.clearRect(0, 0, adventureCanvas.width, adventureCanvas.height);
+  if (adventureBgLoaded) {
+    actx.drawImage(adventureBg, 0, 0, adventureCanvas.width, adventureCanvas.height);
+  } else {
+    actx.fillStyle = "#ccc";
+    actx.fillRect(0, 0, adventureCanvas.width, adventureCanvas.height);
+  }
+  // Draw grid boxes
+  for (let r = 0; r < gridRows; r++) {
+    for (let c = 0; c < gridCols; c++) {
+      const key = `${c},${r}`;
+      const cell = adventureGrid[key] || {};
+      const x = offsetX + c * cellSize;
+      const y = offsetY + r * cellSize;
+      actx.fillStyle = cell.color || "rgba(255,255,255,0.3)";
+      actx.fillRect(x, y, cellSize, cellSize);
+      actx.strokeStyle = "black";
+      actx.lineWidth = 1.5;
+      actx.strokeRect(x, y, cellSize, cellSize);
+      // No more type in box! We'll use overlay instead.
+      // No images drawn here; they go in overlay as well.
+    }
+  }
+  // Draw hover highlight
+  if (advHover) {
+    const { c, r } = advHover;
+    const x = offsetX + c * cellSize;
+    const y = offsetY + r * cellSize;
+    actx.save();
+    actx.strokeStyle = "yellow";
+    actx.lineWidth = 4;
+    actx.strokeRect(x, y, cellSize, cellSize);
+    actx.restore();
+  }
+}
+
+adventureCanvas.addEventListener("click", async (e) => {
+  if (!isAdmin) return;
+  const c = Math.floor((e.offsetX - offsetX) / cellSize);
+  const r = Math.floor((e.offsetY - offsetY) / cellSize);
+  if (c < 0 || r < 0 || c >= gridCols || r >= gridRows) return;
+  const key = `${c},${r}`;
+  const existing = adventureGrid[key] || {};
+  const type = prompt("Enter Mission Type:", existing.type || "");
+  const details = prompt("Enter Mission Details:", existing.details || "");
+  const image = prompt("Enter Image URL:", existing.image || "");
+  adventureGrid[key] = { type, details, image, color: "rgba(0,255,0,0.2)" };
+  renderAdventureGrid(false);
+});
+
+adventureCanvas.addEventListener("mousemove", (e) => {
+  const c = Math.floor((e.offsetX - offsetX) / cellSize);
+  const r = Math.floor((e.offsetY - offsetY) / cellSize);
+  if (c < 0 || r < 0 || c >= gridCols || r >= gridRows) {
+    advHover = null;
+    document.getElementById("advTooltip").style.display = "none";
+    renderAdventureGrid(false);
+    return;
+  }
+  advHover = { c, r };
+  renderAdventureGrid(false);
+
+  // Show adventure tooltip overlay
+  const key = `${c},${r}`;
+  const cell = adventureGrid[key];
+  if (cell && (cell.type || cell.details || cell.image)) {
+    const advTooltip = document.getElementById("advTooltip");
+    advTooltip.style.display = "block";
+    advTooltip.style.left = (e.clientX + 15) + "px";
+    advTooltip.style.top = (e.clientY + 25) + "px";
+    advTooltip.innerHTML =
+      `<strong>${cell.type || "Unknown Mission"}</strong><br>` +
+      (cell.details ? cell.details + "<br>" : "") +
+      (cell.image ? `<img src="${cell.image}" style="width:90px; margin-top:5px;">` : "");
+  } else {
+    document.getElementById("advTooltip").style.display = "none";
+  }
+});
+
+window.submitAdventureMission = () => {
+  const type = prompt("What type of mission would you like to request?");
+  const details = prompt("Please describe the mission details:");
+  alert(`Mission Requested:\nType: ${type}\nDetails: ${details}`);
+};
+
+window.registerForMission = () => {
+  const mission = prompt("Which mission would you like to accept?");
+  const family = prompt("Enter your family name:");
+  alert(`Registered for mission: ${mission}\nFamily: ${family}`);
+};
+
+window.assignRank = (rank) => {
+  if (!isAdmin) return;
+  const name = prompt(`Enter name for ${rank} rank:`);
+  if (name) {
+    adventureRanks[rank].push(name);
+    updateRankUI();
+  }
+};
+
+function updateRankUI() {
+  for (const rank of ["S", "A", "B", "C", "D", "E"]) {
+    const el = document.getElementById(`rank${rank}`);
+    el.textContent = adventureRanks[rank].join(", ");
+    if (isAdmin) {
+      document.getElementById(`addRank${rank}`).style.display = "inline";
+    } else {
+      document.getElementById(`addRank${rank}`).style.display = "none";
+    }
+  }
+}
+
+window.onload = () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  adventureCanvas.width = window.innerWidth;
+  adventureCanvas.height = window.innerHeight;
+  render();
+  renderAdventureGrid(false);
+  updateRankUI();
+};
+
