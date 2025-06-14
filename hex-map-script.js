@@ -69,7 +69,7 @@ window.toggleView = () => {
   document.getElementById("advTooltip").style.display = "none";
   updateRankUI();
   if (inAdventureView) {
-    renderAdventureGrid();
+    loadAdventureGrid().then(() => renderAdventureGrid());
   } else {
     render();
   }
@@ -123,17 +123,13 @@ window.confirmRegistration = async () => {
   const family = document.getElementById("familyNameInput").value;
   const domain = document.getElementById("domainInput").value;
   const heraldry = document.getElementById("heraldryInput").value;
-  // FIX: don't use undefined values
-  const msgFamily = family ? family : "(none)";
-  const msgDomain = domain ? domain : "(none)";
-  const msgHeraldry = heraldry ? heraldry : "(none)";
-  const message = `🏰 Noble House Registered:\nFamily: ${msgFamily}\nDomain: ${msgDomain}\nHeraldry: ${msgHeraldry}`;
+  const message = `🏰 Noble House Registered:\nFamily: ${family}\nDomain: ${domain}\nHeraldry: ${heraldry}`;
 
   await addDoc(collection(db, "orders"), {
     type: "registration",
-    family: msgFamily,
-    domain: msgDomain,
-    heraldry: msgHeraldry,
+    family,
+    domain,
+    heraldry,
     message,
     timestamp: Date.now()
   });
@@ -157,7 +153,8 @@ const hexGrid = {};
 function highlightOrderTargets(orderData) {
   clearOrderHighlights();
   const keys = Object.keys(hexGrid);
-  const targetMatch = keys.find(k => hexGrid[k].title && hexGrid[k].title.toLowerCase().includes((orderData.target || '').toLowerCase()));
+  const targetMatch = keys.find(k => hexGrid[k].title.toLowerCase().includes(orderData.target.toLowerCase()));
+
   if (targetMatch) {
     const hex = hexGrid[targetMatch];
     highlightedOrders.push({ key: targetMatch, originalColor: hex.color });
@@ -183,7 +180,7 @@ window.loadOrders = async () => {
   querySnapshot.forEach(doc => {
     const data = doc.data();
     const li = document.createElement("li");
-    li.textContent = `[${data.type}] ${data.house ? data.house : ''} -> ${data.target ? data.target : ''}`;
+    li.textContent = `[${data.type}] ${data.house} -> ${data.target}`;
     li.style.cursor = "pointer";
     li.onclick = () => highlightOrderTargets(data);
     list.appendChild(li);
@@ -301,10 +298,10 @@ canvas.addEventListener("mousemove", (e) => {
   const hex = hexGrid[key];
 
   if (hex) {
-    // LordPanel: slightly down (from previous version)
+    // LordPanel above tooltip
     lordPanel.style.display = "block";
     lordPanel.style.left = `${e.clientX + 10}px`;
-    lordPanel.style.top = `${e.clientY - 145}px`; // ~55px above tooltip now
+    lordPanel.style.top = `${e.clientY - 200}px`;
     lordName.textContent = hex.lord || "Unknown Lord";
     lordInfo.textContent = hex.lordInfo || "";
     lordVideo.src = hex.lordVideo || "";
@@ -339,7 +336,7 @@ background.onload = () => {
   loadGrid();
 };
 
-// ------------------ ADVENTURE GRID LOGIC ------------------
+// ------------------ ADVENTURE GRID LOGIC + PERSISTENCE ------------------
 const adventureCanvas = document.getElementById("adventureGrid");
 const actx = adventureCanvas.getContext("2d");
 const gridCols = 10;
@@ -359,22 +356,6 @@ adventureBg.onload = () => {
   adventureBgLoaded = true;
   renderAdventureGrid();
 };
-
-// --- ADVENTURE GRID FIRESTORE LOGIC ---
-
-// Save one cell
-async function saveAdventureCell(key, data) {
-  await setDoc(doc(db, "adventureCells", key), data);
-}
-
-// Load all cells
-async function loadAdventureGrid() {
-  const snap = await getDocs(collection(db, "adventureCells"));
-  snap.forEach(docSnap => {
-    adventureGrid[docSnap.id] = docSnap.data();
-  });
-  renderAdventureGrid();
-}
 
 function renderAdventureGrid() {
   actx.clearRect(0, 0, adventureCanvas.width, adventureCanvas.height);
@@ -396,7 +377,6 @@ function renderAdventureGrid() {
       actx.strokeStyle = "black";
       actx.lineWidth = 1.5;
       actx.strokeRect(x, y, cellSize, cellSize);
-      // No more type in box! We'll use overlay instead.
     }
   }
   // Draw hover highlight
@@ -422,9 +402,8 @@ adventureCanvas.addEventListener("click", async (e) => {
   const type = prompt("Enter Mission Type:", existing.type || "");
   const details = prompt("Enter Mission Details:", existing.details || "");
   const image = prompt("Enter Image URL:", existing.image || "");
-  const cellData = { type, details, image, color: "rgba(0,255,0,0.2)" };
-  adventureGrid[key] = cellData;
-  await saveAdventureCell(key, cellData); // Save to Firestore!
+  adventureGrid[key] = { type, details, image, color: "rgba(0,255,0,0.2)" };
+  await setDoc(doc(db, "adventureCells", key), adventureGrid[key]); // PERSIST TO FIRESTORE
   renderAdventureGrid();
 });
 
@@ -456,6 +435,16 @@ adventureCanvas.addEventListener("mousemove", (e) => {
     document.getElementById("advTooltip").style.display = "none";
   }
 });
+
+// New: Load all adventure cells from Firestore
+async function loadAdventureGrid() {
+  adventureGrid = {}; // Reset
+  const snap = await getDocs(collection(db, "adventureCells"));
+  snap.forEach(docSnap => {
+    adventureGrid[docSnap.id] = docSnap.data();
+  });
+  renderAdventureGrid();
+}
 
 window.submitAdventureMission = () => {
   const type = prompt("What type of mission would you like to request?");
@@ -495,8 +484,7 @@ window.onload = () => {
   canvas.height = window.innerHeight;
   adventureCanvas.width = window.innerWidth;
   adventureCanvas.height = window.innerHeight;
-  render();
-  renderAdventureGrid();
-  updateRankUI();
+  loadGrid();
   loadAdventureGrid();
+  updateRankUI();
 };
