@@ -9,8 +9,7 @@ import {
   getDocs,
   collection,
   addDoc,
-  deleteDoc,
-  updateDoc
+  deleteDoc
 } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -32,8 +31,10 @@ let hoveredHexKey = null;
 let inAdventureView = false;
 let currentOrderType = null;
 
+// ADVENTURE RANKS (persisted in Firebase)
 let adventureRanks = { S: [], A: [], B: [], C: [], D: [], E: [] };
 
+// Always load adventure ranks at startup
 async function loadRanks() {
   const docSnap = await getDoc(doc(db, "adventure", "ranks"));
   if (docSnap.exists()) {
@@ -42,6 +43,7 @@ async function loadRanks() {
   updateRankUI();
 }
 
+// Always save ranks to the same place
 async function saveRanks() {
   await setDoc(doc(db, "adventure", "ranks"), adventureRanks);
 }
@@ -140,9 +142,9 @@ window.confirmRegistration = async () => {
 
   await addDoc(collection(db, "orders"), {
     type: "registration",
-    family,
-    domain,
-    heraldry,
+    family: family || "",
+    domain: domain || "",
+    heraldry: heraldry || "",
     message,
     timestamp: Date.now()
   });
@@ -168,7 +170,7 @@ window.loadOrders = async () => {
     const data = doc.data();
     const li = document.createElement("li");
     if (data.type === "registration") {
-      li.textContent = `[registration] ${data.family || ""} -> ${data.domain || ""}`;
+      li.textContent = `[registration] ${data.family || "?"} -> ${data.domain || "?"}`;
     } else {
       li.textContent = `[${data.type}] ${data.house || ""} -> ${data.target || ""}`;
     }
@@ -205,7 +207,7 @@ const hexGrid = {};
 function highlightOrderTargets(orderData) {
   clearOrderHighlights();
   const keys = Object.keys(hexGrid);
-  const targetMatch = keys.find(k => hexGrid[k].title.toLowerCase().includes(orderData.target?.toLowerCase() || ""));
+  const targetMatch = keys.find(k => hexGrid[k].title && orderData.target && hexGrid[k].title.toLowerCase().includes(orderData.target.toLowerCase()));
   if (targetMatch) {
     const hex = hexGrid[targetMatch];
     highlightedOrders.push({ key: targetMatch, originalColor: hex.color });
@@ -315,7 +317,7 @@ canvas.addEventListener("mousemove", (e) => {
     // LordPanel slightly above tooltip
     lordPanel.style.display = "block";
     lordPanel.style.left = `${e.clientX + 10}px`;
-    lordPanel.style.top = `${e.clientY - 165}px`;
+    lordPanel.style.top = `${e.clientY - 160}px`;
     lordName.textContent = hex.lord || "Unknown Lord";
     lordInfo.textContent = hex.lordInfo || "";
     lordVideo.src = hex.lordVideo || "";
@@ -497,6 +499,7 @@ function updateRankUI() {
   }
 }
 
+// === PAGE LOAD ===
 window.onload = async () => {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
