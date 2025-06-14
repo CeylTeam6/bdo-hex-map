@@ -9,7 +9,8 @@ import {
   getDocs,
   collection,
   addDoc,
-  deleteDoc
+  deleteDoc,
+  updateDoc
 } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -32,6 +33,18 @@ let inAdventureView = false;
 let currentOrderType = null;
 
 let adventureRanks = { S: [], A: [], B: [], C: [], D: [], E: [] };
+
+async function loadRanks() {
+  const docSnap = await getDoc(doc(db, "adventure", "ranks"));
+  if (docSnap.exists()) {
+    adventureRanks = docSnap.data();
+  }
+  updateRankUI();
+}
+
+async function saveRanks() {
+  await setDoc(doc(db, "adventure", "ranks"), adventureRanks);
+}
 
 onAuthStateChanged(auth, user => {
   isAdmin = !!user;
@@ -69,7 +82,7 @@ window.toggleView = () => {
   document.getElementById("advTooltip").style.display = "none";
   updateRankUI();
   if (inAdventureView) {
-    loadAdventureGrid().then(() => renderAdventureGrid());
+    renderAdventureGrid(false);
   } else {
     render();
   }
@@ -146,33 +159,7 @@ window.cancelRegistration = () => {
   document.getElementById("registerPrompt").style.display = "none";
 };
 
-// Order Log
-let highlightedOrders = [];
-const hexGrid = {};
-
-function highlightOrderTargets(orderData) {
-  clearOrderHighlights();
-  const keys = Object.keys(hexGrid);
-  const targetMatch = keys.find(k => hexGrid[k].title.toLowerCase().includes(orderData.target.toLowerCase()));
-
-  if (targetMatch) {
-    const hex = hexGrid[targetMatch];
-    highlightedOrders.push({ key: targetMatch, originalColor: hex.color });
-    hex.color = "rgba(255, 0, 0, 0.5)";
-  }
-  render();
-}
-
-function clearOrderHighlights() {
-  highlightedOrders.forEach(({ key, originalColor }) => {
-    if (hexGrid[key]) {
-      hexGrid[key].color = originalColor;
-    }
-  });
-  highlightedOrders = [];
-  render();
-}
-
+// Order Log (fixed for registrations)
 window.loadOrders = async () => {
   const list = document.getElementById("orderList");
   list.innerHTML = "";
@@ -180,7 +167,11 @@ window.loadOrders = async () => {
   querySnapshot.forEach(doc => {
     const data = doc.data();
     const li = document.createElement("li");
-    li.textContent = `[${data.type}] ${data.house} -> ${data.target}`;
+    if (data.type === "registration") {
+      li.textContent = `[registration] ${data.family || ""} -> ${data.domain || ""}`;
+    } else {
+      li.textContent = `[${data.type}] ${data.house || ""} -> ${data.target || ""}`;
+    }
     li.style.cursor = "pointer";
     li.onclick = () => highlightOrderTargets(data);
     list.appendChild(li);
@@ -208,6 +199,31 @@ const lordName = document.getElementById("lordName");
 const lordInfo = document.getElementById("lordInfo");
 const lordVideo = document.getElementById("lordVideo");
 
+let highlightedOrders = [];
+const hexGrid = {};
+
+function highlightOrderTargets(orderData) {
+  clearOrderHighlights();
+  const keys = Object.keys(hexGrid);
+  const targetMatch = keys.find(k => hexGrid[k].title.toLowerCase().includes(orderData.target?.toLowerCase() || ""));
+  if (targetMatch) {
+    const hex = hexGrid[targetMatch];
+    highlightedOrders.push({ key: targetMatch, originalColor: hex.color });
+    hex.color = "rgba(255, 0, 0, 0.5)";
+  }
+  render();
+}
+
+function clearOrderHighlights() {
+  highlightedOrders.forEach(({ key, originalColor }) => {
+    if (hexGrid[key]) {
+      hexGrid[key].color = originalColor;
+    }
+  });
+  highlightedOrders = [];
+  render();
+}
+
 function hexToPixel(q, r) {
   const x = hexSize * Math.sqrt(3) * (q + r / 2);
   const y = hexSize * 1.5 * r;
@@ -224,11 +240,9 @@ function hexRound(q, r) {
   let x = q, z = r, y = -x - z;
   let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
   const x_diff = Math.abs(rx - x), y_diff = Math.abs(ry - y), z_diff = Math.abs(rz - z);
-
   if (x_diff > y_diff && x_diff > z_diff) rx = -ry - rz;
   else if (y_diff > z_diff) ry = -rx - rz;
   else rz = -rx - ry;
-
   return { q: rx, r: rz };
 }
 
@@ -298,10 +312,10 @@ canvas.addEventListener("mousemove", (e) => {
   const hex = hexGrid[key];
 
   if (hex) {
-    // LordPanel above tooltip
+    // LordPanel slightly above tooltip
     lordPanel.style.display = "block";
     lordPanel.style.left = `${e.clientX + 10}px`;
-    lordPanel.style.top = `${e.clientY - 170}px`;
+    lordPanel.style.top = `${e.clientY - 165}px`;
     lordName.textContent = hex.lord || "Unknown Lord";
     lordInfo.textContent = hex.lordInfo || "";
     lordVideo.src = hex.lordVideo || "";
@@ -336,7 +350,7 @@ background.onload = () => {
   loadGrid();
 };
 
-// ------------------ ADVENTURE GRID LOGIC + PERSISTENCE ------------------
+// ------------------ ADVENTURE GRID LOGIC ------------------
 const adventureCanvas = document.getElementById("adventureGrid");
 const actx = adventureCanvas.getContext("2d");
 const gridCols = 10;
@@ -354,8 +368,21 @@ let adventureBg = new Image();
 adventureBg.src = "adventure.jpg";
 adventureBg.onload = () => {
   adventureBgLoaded = true;
-  renderAdventureGrid();
+  renderAdventureGrid(false);
 };
+
+// --- Adventure Grid Firebase Save/Load ---
+async function loadAdventureGrid() {
+  const snap = await getDocs(collection(db, "adventureGrid"));
+  snap.forEach(docSnap => {
+    adventureGrid[docSnap.id] = docSnap.data();
+  });
+  renderAdventureGrid(false);
+}
+
+async function saveAdventureGridCell(key) {
+  await setDoc(doc(db, "adventureGrid", key), adventureGrid[key]);
+}
 
 function renderAdventureGrid() {
   actx.clearRect(0, 0, adventureCanvas.width, adventureCanvas.height);
@@ -403,8 +430,8 @@ adventureCanvas.addEventListener("click", async (e) => {
   const details = prompt("Enter Mission Details:", existing.details || "");
   const image = prompt("Enter Image URL:", existing.image || "");
   adventureGrid[key] = { type, details, image, color: "rgba(0,255,0,0.2)" };
-  await setDoc(doc(db, "adventureCells", key), adventureGrid[key]); // PERSIST TO FIRESTORE
-  renderAdventureGrid();
+  await saveAdventureGridCell(key);
+  renderAdventureGrid(false);
 });
 
 adventureCanvas.addEventListener("mousemove", (e) => {
@@ -413,11 +440,11 @@ adventureCanvas.addEventListener("mousemove", (e) => {
   if (c < 0 || r < 0 || c >= gridCols || r >= gridRows) {
     advHover = null;
     document.getElementById("advTooltip").style.display = "none";
-    renderAdventureGrid();
+    renderAdventureGrid(false);
     return;
   }
   advHover = { c, r };
-  renderAdventureGrid();
+  renderAdventureGrid(false);
 
   // Show adventure tooltip overlay
   const key = `${c},${r}`;
@@ -436,16 +463,6 @@ adventureCanvas.addEventListener("mousemove", (e) => {
   }
 });
 
-// New: Load all adventure cells from Firestore
-async function loadAdventureGrid() {
-  adventureGrid = {}; // Reset
-  const snap = await getDocs(collection(db, "adventureCells"));
-  snap.forEach(docSnap => {
-    adventureGrid[docSnap.id] = docSnap.data();
-  });
-  renderAdventureGrid();
-}
-
 window.submitAdventureMission = () => {
   const type = prompt("What type of mission would you like to request?");
   const details = prompt("Please describe the mission details:");
@@ -458,11 +475,12 @@ window.registerForMission = () => {
   alert(`Registered for mission: ${mission}\nFamily: ${family}`);
 };
 
-window.assignRank = (rank) => {
+window.assignRank = async (rank) => {
   if (!isAdmin) return;
   const name = prompt(`Enter name for ${rank} rank:`);
   if (name) {
     adventureRanks[rank].push(name);
+    await saveRanks();
     updateRankUI();
   }
 };
@@ -470,7 +488,7 @@ window.assignRank = (rank) => {
 function updateRankUI() {
   for (const rank of ["S", "A", "B", "C", "D", "E"]) {
     const el = document.getElementById(`rank${rank}`);
-    el.textContent = adventureRanks[rank].join(", ");
+    el.textContent = adventureRanks[rank]?.join(", ") || "";
     if (isAdmin) {
       document.getElementById(`addRank${rank}`).style.display = "inline";
     } else {
@@ -479,12 +497,14 @@ function updateRankUI() {
   }
 }
 
-window.onload = () => {
+window.onload = async () => {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
   adventureCanvas.width = window.innerWidth;
   adventureCanvas.height = window.innerHeight;
-  loadGrid();
-  loadAdventureGrid();
+  render();
+  await loadGrid();
+  await loadAdventureGrid();
+  await loadRanks();
   updateRankUI();
 };
