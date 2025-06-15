@@ -1,4 +1,4 @@
-// Firebase and canvas setup
+// Firebase and canvas setup (keep your current firebase config)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-auth.js";
 import {
@@ -30,62 +30,34 @@ let isAdmin = false;
 let hoveredHexKey = null;
 let inAdventureView = false;
 let currentOrderType = null;
-let clearingMode = null;
-
 let adventureRanks = { S: [], A: [], B: [], C: [], D: [], E: [] };
-const hexGrid = {};
-let adventureGrid = {};
-let advHover = null;
 
-let adventureBgLoaded = false;
-let adventureBg = new window.Image();
-adventureBg.src = "adventure.jpg";
-adventureBg.onload = () => {
-  adventureBgLoaded = true;
-  renderAdventureGrid();
-};
+// ----------- Dynamic grid scaling for hex map (reference: 2560x1440, 25x14 grid) -------------
+const REFERENCE_WIDTH = 2560;
+const REFERENCE_HEIGHT = 1440;
+const gridCols = 25;
+const gridRows = 14;
 
-const canvas = document.getElementById("hexMap");
-const ctx = canvas.getContext("2d");
-const adventureCanvas = document.getElementById("adventureGrid");
-const actx = adventureCanvas.getContext("2d");
+function getHexLayout() {
+  const screenW = window.innerWidth;
+  const screenH = window.innerHeight;
+  const refHexWidth = REFERENCE_WIDTH / (gridCols + 0.5);
+  const refHexHeight = REFERENCE_HEIGHT / ((gridRows - 1) * 0.75 + 1);
+  const refHexSize = Math.min(refHexWidth / Math.sqrt(3), refHexHeight / 1.5);
 
-const tooltip = document.getElementById("tooltip");
-const lordPanel = document.getElementById("lordPanel");
-const lordName = document.getElementById("lordName");
-const lordInfo = document.getElementById("lordInfo");
-const lordVideo = document.getElementById("lordVideo");
-const advTooltip = document.getElementById("advTooltip");
+  const hexWidth = screenW / (gridCols + 0.5);
+  const hexHeight = screenH / ((gridRows - 1) * 0.75 + 1);
+  const hexSize = Math.min(hexWidth / Math.sqrt(3), hexHeight / 1.5);
 
-let hexSize = 60;
-let cellSize = 100;
-const gridCols = 10;
-const gridRows = 10;
-let offsetX = 0;
-let offsetY = 0;
+  const pixelWidth = hexSize * Math.sqrt(3) * (gridCols + 0.5);
+  const pixelHeight = hexSize * 1.5 * (gridRows - 1) + hexSize * 2;
+  const offsetX = (screenW - pixelWidth) / 2 + hexSize;
+  const offsetY = (screenH - pixelHeight) / 2 + hexSize;
 
-let background = new window.Image();
-let bgLoaded = false;
-background.src = "BDOMAP.jpg";
-background.onload = () => {
-  bgLoaded = true;
-  render();
-};
-
-function fitCanvasToWindow() {
-  // Make both canvases fit to the window and recalculate offsets
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  adventureCanvas.width = window.innerWidth;
-  adventureCanvas.height = window.innerHeight;
-
-  // Adjust offsets for adventure grid
-  offsetX = (window.innerWidth - gridCols * cellSize) / 2;
-  offsetY = (window.innerHeight - gridRows * cellSize) / 2;
-  render();
-  renderAdventureGrid();
+  return { hexSize, offsetX, offsetY };
 }
-window.addEventListener("resize", fitCanvasToWindow);
+
+// ---------------------- Auth and UI events ----------------------
 
 onAuthStateChanged(auth, user => {
   isAdmin = !!user;
@@ -121,24 +93,13 @@ window.toggleView = () => {
   document.getElementById("tooltip").style.display = "none";
   document.getElementById("lordPanel").style.display = "none";
   document.getElementById("advTooltip").style.display = "none";
-  clearingMode = null;
   updateRankUI();
+  resizeCanvas();
   if (inAdventureView) {
-    renderAdventureGrid();
+    loadAdventureGrid().then(() => renderAdventureGrid());
   } else {
     render();
   }
-};
-
-window.enableClearHexTile = () => {
-  if (!isAdmin) return alert("Login as admin to clear tiles.");
-  clearingMode = "hex";
-  alert("Click any hex to clear it.");
-};
-window.enableClearAdventureTile = () => {
-  if (!isAdmin) return alert("Login as admin to clear tiles.");
-  clearingMode = "adventure";
-  alert("Click any adventure square to clear it.");
 };
 
 window.submitOrder = (type) => {
@@ -159,7 +120,8 @@ window.confirmOrder = async () => {
     case "diplomacy": emoji = "🕊️"; break;
     default: emoji = "❔";
   }
-  const message = `${emoji} ${house} issues a ${currentOrderType ? currentOrderType.toUpperCase() : ""} order targeting ${target}`;
+  const message = `${emoji} ${house} issues a ${currentOrderType.toUpperCase()} order targeting ${target}`;
+
   await addDoc(collection(db, "orders"), {
     type: currentOrderType,
     house,
@@ -167,9 +129,11 @@ window.confirmOrder = async () => {
     message,
     timestamp: Date.now()
   });
+
   document.getElementById("orderPrompt").style.display = "none";
   document.getElementById("nobleHouseInput").value = "";
   document.getElementById("targetInput").value = "";
+
   if (isAdmin) loadOrders();
 };
 
@@ -177,15 +141,19 @@ window.cancelOrder = () => {
   document.getElementById("orderPrompt").style.display = "none";
 };
 
+// Noble House Registration
 window.registerNobleHouse = () => {
   document.getElementById("registerPrompt").style.display = "block";
 };
 
 window.confirmRegistration = async () => {
-  const family = document.getElementById("familyNameInput").value || "";
-  const domain = document.getElementById("domainInput").value || "";
-  const heraldry = document.getElementById("heraldryInput").value || "";
-  const message = `🏰 Noble House Registered:\nFamily: ${family}\nDomain: ${domain}\nHeraldry: ${heraldry}`;
+  const family = document.getElementById("familyNameInput").value;
+  const domain = document.getElementById("domainInput").value;
+  const heraldry = document.getElementById("heraldryInput").value;
+  const message = `🏰 Noble House Registered:
+Family: ${family}
+Domain: ${domain}
+Heraldry: ${heraldry}`;
   await addDoc(collection(db, "orders"), {
     type: "registration",
     house: family,
@@ -196,10 +164,12 @@ window.confirmRegistration = async () => {
     message,
     timestamp: Date.now()
   });
+
   document.getElementById("registerPrompt").style.display = "none";
   document.getElementById("familyNameInput").value = "";
   document.getElementById("domainInput").value = "";
   document.getElementById("heraldryInput").value = "";
+
   if (isAdmin) loadOrders();
 };
 
@@ -207,13 +177,14 @@ window.cancelRegistration = () => {
   document.getElementById("registerPrompt").style.display = "none";
 };
 
+// Order Log
 let highlightedOrders = [];
+const hexGrid = {};
 
 function highlightOrderTargets(orderData) {
   clearOrderHighlights();
   const keys = Object.keys(hexGrid);
-  if (!orderData || !orderData.target) return;
-  const targetMatch = keys.find(k => hexGrid[k].title && hexGrid[k].title.toLowerCase().includes(orderData.target.toLowerCase()));
+  const targetMatch = keys.find(k => hexGrid[k].title && hexGrid[k].title.toLowerCase().includes(orderData.target ? orderData.target.toLowerCase() : ''));
   if (targetMatch) {
     const hex = hexGrid[targetMatch];
     highlightedOrders.push({ key: targetMatch, originalColor: hex.color });
@@ -239,11 +210,7 @@ window.loadOrders = async () => {
   querySnapshot.forEach(doc => {
     const data = doc.data();
     const li = document.createElement("li");
-    if (data.type === "registration") {
-      li.textContent = `[registration] ${data.family} / ${data.domain}`;
-    } else {
-      li.textContent = `[${data.type}] ${data.house} -> ${data.target}`;
-    }
+    li.textContent = `[${data.type}] ${data.house} -> ${data.target}`;
     li.style.cursor = "pointer";
     li.onclick = () => highlightOrderTargets(data);
     list.appendChild(li);
@@ -259,26 +226,47 @@ window.clearOrders = async () => {
 };
 
 // --- HEX MAP LOGIC ---
+const canvas = document.getElementById("hexMap");
+const ctx = canvas.getContext("2d");
+const background = new Image();
+background.src = "BDOMAP.jpg?v=" + Date.now();
+
+const tooltip = document.getElementById("tooltip");
+const lordPanel = document.getElementById("lordPanel");
+const lordName = document.getElementById("lordName");
+const lordInfo = document.getElementById("lordInfo");
+const lordVideo = document.getElementById("lordVideo");
+
 function hexToPixel(q, r) {
-  const x = hexSize * Math.sqrt(3) * (q + r / 2);
-  const y = hexSize * 1.5 * r;
+  const { hexSize, offsetX, offsetY } = getHexLayout();
+  const x = hexSize * Math.sqrt(3) * (q + r / 2) + offsetX;
+  const y = hexSize * 1.5 * r + offsetY;
   return { x, y };
 }
+
 function pixelToHex(x, y) {
+  const { hexSize, offsetX, offsetY } = getHexLayout();
+  x -= offsetX;
+  y -= offsetY;
   const q = ((Math.sqrt(3) / 3 * x) - (1 / 3 * y)) / hexSize;
   const r = (2 / 3 * y) / hexSize;
   return hexRound(q, r);
 }
+
 function hexRound(q, r) {
   let x = q, z = r, y = -x - z;
   let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
   const x_diff = Math.abs(rx - x), y_diff = Math.abs(ry - y), z_diff = Math.abs(rz - z);
+
   if (x_diff > y_diff && x_diff > z_diff) rx = -ry - rz;
   else if (y_diff > z_diff) ry = -rx - rz;
   else rz = -rx - ry;
+
   return { q: rx, r: rz };
 }
+
 function drawHex(x, y, color = "rgba(0,0,0,0)", label = "", isHovered = false) {
+  const { hexSize } = getHexLayout();
   ctx.beginPath();
   for (let i = 0; i < 6; i++) {
     const angle = Math.PI / 180 * (60 * i + 30);
@@ -302,14 +290,16 @@ function drawHex(x, y, color = "rgba(0,0,0,0)", label = "", isHovered = false) {
     ctx.fillText(label, x, y + 5);
   }
 }
+
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (bgLoaded) ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
   Object.entries(hexGrid).forEach(([key, { q, r, color }]) => {
     const { x, y } = hexToPixel(q, r);
     drawHex(x, y, color, key, key === hoveredHexKey);
   });
 }
+
 canvas.addEventListener("click", async (e) => {
   if (!isAdmin) return alert("You must be logged in to edit.");
   const rect = canvas.getBoundingClientRect();
@@ -317,31 +307,36 @@ canvas.addEventListener("click", async (e) => {
   const mouseY = e.clientY - rect.top;
   const { q, r } = pixelToHex(mouseX, mouseY);
   const key = `${q},${r}`;
-  if (clearingMode === "hex") {
-    await deleteDoc(doc(db, "hexTiles", key));
-    delete hexGrid[key];
-    clearingMode = null;
+  let data = hexGrid[key] || { q, r, color: "rgba(0,0,0,0)", title: "Untitled", info: "", image: "", lord: "", lordInfo: "", lordVideo: "" };
+
+  // Clear tile
+  if (window.clearHexMode) {
+    await setDoc(doc(db, "hexTiles", key), { q, r, color: "rgba(0,0,0,0)", title: "", info: "", image: "", lord: "", lordInfo: "", lordVideo: "" });
+    hexGrid[key] = { q, r, color: "rgba(0,0,0,0)", title: "", info: "", image: "", lord: "", lordInfo: "", lordVideo: "" };
+    window.clearHexMode = false;
     render();
     return;
   }
-  const data = hexGrid[key] || { q, r, color: "rgba(0,0,0,0)", title: "Untitled", info: "", image: "", lord: "", lordInfo: "", lordVideo: "" };
+
   const title = prompt("Enter title:", data.title);
-  if (!title) {
-    await deleteDoc(doc(db, "hexTiles", key));
-    delete hexGrid[key];
-    render();
-    return;
-  }
   const info = prompt("Enter description:", data.info);
   const image = prompt("Enter image URL:", data.image);
   const color = prompt("Enter hex color (e.g. rgba(0,255,0,0.5)):", data.color);
   const lord = prompt("Enter Lord's Name:", data.lord);
   const lordInfoText = prompt("Enter Lord's Info:", data.lordInfo);
   const lordVideoURL = prompt("Enter Lord's Video URL:", data.lordVideo);
-  hexGrid[key] = { q, r, title, info, image, color, lord, lordInfo: lordInfoText, lordVideo: lordVideoURL };
-  await setDoc(doc(db, "hexTiles", key), hexGrid[key]);
+
+  data = { q, r, title, info, image, color, lord, lordInfo: lordInfoText, lordVideo: lordVideoURL };
+  hexGrid[key] = data;
+  await setDoc(doc(db, "hexTiles", key), data);
   render();
 });
+
+window.clearHexTile = () => {
+  window.clearHexMode = true;
+  alert("Click a hex to clear it.");
+};
+
 canvas.addEventListener("mousemove", (e) => {
   const rect = canvas.getBoundingClientRect();
   const mouseX = e.clientX - rect.left;
@@ -350,19 +345,21 @@ canvas.addEventListener("mousemove", (e) => {
   const key = `${q},${r}`;
   hoveredHexKey = key;
   const hex = hexGrid[key];
-  if (hex) {
-    // LORD PANEL APPEARS ABOVE TOOLTIP
+
+  if (hex && (hex.title || hex.info || hex.image)) {
+    // LordPanel above tooltip
     lordPanel.style.display = "block";
     lordPanel.style.left = `${e.clientX + 10}px`;
-    lordPanel.style.top = `${e.clientY - 220}px`; // Place above tooltip!
+    lordPanel.style.top = `${e.clientY - 205}px`; // Place higher up
     lordName.textContent = hex.lord || "Unknown Lord";
     lordInfo.textContent = hex.lordInfo || "";
     lordVideo.src = hex.lordVideo || "";
     lordVideo.loop = true;
     lordVideo.play();
+
     tooltip.style.display = "block";
     tooltip.style.left = `${e.clientX + 10}px`;
-    tooltip.style.top = `${e.clientY + 20}px`;
+    tooltip.style.top = `${e.clientY + 35}px`;
     tooltip.innerHTML = `<strong>${hex.title}</strong><br>${hex.info}` +
       (hex.image ? `<br><img src="${hex.image}" style="width:100px;">` : "");
   } else {
@@ -372,6 +369,7 @@ canvas.addEventListener("mousemove", (e) => {
   }
   render();
 });
+
 async function loadGrid() {
   const snap = await getDocs(collection(db, "hexTiles"));
   snap.forEach(docSnap => {
@@ -381,17 +379,44 @@ async function loadGrid() {
   render();
 }
 
-// --- ADVENTURE GRID LOGIC ---
+// ------ ADVENTURE GRID LOGIC ------
+const adventureCanvas = document.getElementById("adventureGrid");
+const actx = adventureCanvas.getContext("2d");
+const advBg = new Image();
+advBg.src = "adventure.jpg";
+let adventureGrid = {};
+let advHover = null;
+let adventureBgLoaded = false;
+const advGridCols = 7;
+const advGridRows = 7;
+advBg.onload = () => {
+  adventureBgLoaded = true;
+  renderAdventureGrid();
+};
+
+function getAdventureGridLayout() {
+  const padding = 40;
+  const usableW = window.innerWidth - padding * 2;
+  const usableH = window.innerHeight - padding * 2;
+  const cellSize = Math.min(usableW / advGridCols, usableH / advGridRows);
+  const gridWidth = cellSize * advGridCols;
+  const gridHeight = cellSize * advGridRows;
+  const offsetX = (window.innerWidth - gridWidth) / 2;
+  const offsetY = (window.innerHeight - gridHeight) / 2;
+  return { cellSize, offsetX, offsetY };
+}
+
 function renderAdventureGrid() {
   actx.clearRect(0, 0, adventureCanvas.width, adventureCanvas.height);
   if (adventureBgLoaded) {
-    actx.drawImage(adventureBg, 0, 0, adventureCanvas.width, adventureCanvas.height);
+    actx.drawImage(advBg, 0, 0, adventureCanvas.width, adventureCanvas.height);
   } else {
     actx.fillStyle = "#ccc";
     actx.fillRect(0, 0, adventureCanvas.width, adventureCanvas.height);
   }
-  for (let r = 0; r < gridRows; r++) {
-    for (let c = 0; c < gridCols; c++) {
+  const { cellSize, offsetX, offsetY } = getAdventureGridLayout();
+  for (let r = 0; r < advGridRows; r++) {
+    for (let c = 0; c < advGridCols; c++) {
       const key = `${c},${r}`;
       const cell = adventureGrid[key] || {};
       const x = offsetX + c * cellSize;
@@ -403,7 +428,9 @@ function renderAdventureGrid() {
       actx.strokeRect(x, y, cellSize, cellSize);
     }
   }
+  // Draw hover highlight
   if (advHover) {
+    const { cellSize, offsetX, offsetY } = getAdventureGridLayout();
     const { c, r } = advHover;
     const x = offsetX + c * cellSize;
     const y = offsetY + r * cellSize;
@@ -414,39 +441,58 @@ function renderAdventureGrid() {
     actx.restore();
   }
 }
+
 adventureCanvas.addEventListener("click", async (e) => {
   if (!isAdmin) return;
-  const c = Math.floor((e.offsetX - offsetX) / cellSize);
-  const r = Math.floor((e.offsetY - offsetY) / cellSize);
-  if (c < 0 || r < 0 || c >= gridCols || r >= gridRows) return;
+  const { cellSize, offsetX, offsetY } = getAdventureGridLayout();
+  const rect = adventureCanvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  const c = Math.floor((mouseX - offsetX) / cellSize);
+  const r = Math.floor((mouseY - offsetY) / cellSize);
+  if (c < 0 || r < 0 || c >= advGridCols || r >= advGridRows) return;
   const key = `${c},${r}`;
-  if (clearingMode === "adventure") {
-    await deleteDoc(doc(db, "adventureTiles", key));
-    delete adventureGrid[key];
-    clearingMode = null;
-    renderAdventureGrid();
-    return;
-  }
   const existing = adventureGrid[key] || {};
   const type = prompt("Enter Mission Type:", existing.type || "");
-  if (!type) {
-    await deleteDoc(doc(db, "adventureTiles", key));
-    delete adventureGrid[key];
-    renderAdventureGrid();
-    return;
-  }
   const details = prompt("Enter Mission Details:", existing.details || "");
   const image = prompt("Enter Image URL:", existing.image || "");
-  adventureGrid[key] = { type, details, image, color: "rgba(0,255,0,0.2)", c, r };
-  await setDoc(doc(db, "adventureTiles", key), adventureGrid[key]);
+  const color = "rgba(0,255,0,0.2)";
+  adventureGrid[key] = { type, details, image, color };
+  await setDoc(doc(db, "adventureGrid", key), { ...adventureGrid[key], c, r });
   renderAdventureGrid();
 });
+
+window.clearAdventureTile = () => {
+  window.clearAdventureMode = true;
+  alert("Click an adventure box to clear it.");
+};
+
+adventureCanvas.addEventListener("mousedown", async (e) => {
+  if (!window.clearAdventureMode) return;
+  const { cellSize, offsetX, offsetY } = getAdventureGridLayout();
+  const rect = adventureCanvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  const c = Math.floor((mouseX - offsetX) / cellSize);
+  const r = Math.floor((mouseY - offsetY) / cellSize);
+  if (c < 0 || r < 0 || c >= advGridCols || r >= advGridRows) return;
+  const key = `${c},${r}`;
+  adventureGrid[key] = {};
+  await setDoc(doc(db, "adventureGrid", key), { c, r, type: "", details: "", image: "", color: "" });
+  window.clearAdventureMode = false;
+  renderAdventureGrid();
+});
+
 adventureCanvas.addEventListener("mousemove", (e) => {
-  const c = Math.floor((e.offsetX - offsetX) / cellSize);
-  const r = Math.floor((e.offsetY - offsetY) / cellSize);
-  if (c < 0 || r < 0 || c >= gridCols || r >= gridRows) {
+  const { cellSize, offsetX, offsetY } = getAdventureGridLayout();
+  const rect = adventureCanvas.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  const c = Math.floor((mouseX - offsetX) / cellSize);
+  const r = Math.floor((mouseY - offsetY) / cellSize);
+  if (c < 0 || r < 0 || c >= advGridCols || r >= advGridRows) {
     advHover = null;
-    advTooltip.style.display = "none";
+    document.getElementById("advTooltip").style.display = "none";
     renderAdventureGrid();
     return;
   }
@@ -455,6 +501,7 @@ adventureCanvas.addEventListener("mousemove", (e) => {
   const key = `${c},${r}`;
   const cell = adventureGrid[key];
   if (cell && (cell.type || cell.details || cell.image)) {
+    const advTooltip = document.getElementById("advTooltip");
     advTooltip.style.display = "block";
     advTooltip.style.left = (e.clientX + 15) + "px";
     advTooltip.style.top = (e.clientY + 25) + "px";
@@ -463,47 +510,52 @@ adventureCanvas.addEventListener("mousemove", (e) => {
       (cell.details ? cell.details + "<br>" : "") +
       (cell.image ? `<img src="${cell.image}" style="width:90px; margin-top:5px;">` : "");
   } else {
-    advTooltip.style.display = "none";
+    document.getElementById("advTooltip").style.display = "none";
   }
 });
+
 async function loadAdventureGrid() {
-  const snap = await getDocs(collection(db, "adventureTiles"));
+  adventureGrid = {};
+  const snap = await getDocs(collection(db, "adventureGrid"));
   snap.forEach(docSnap => {
     const data = docSnap.data();
     adventureGrid[`${data.c},${data.r}`] = data;
   });
-  renderAdventureGrid();
 }
 
-// --- ADVENTURE BUTTONS ---
 window.submitAdventureMission = () => {
   const type = prompt("What type of mission would you like to request?");
   const details = prompt("Please describe the mission details:");
   alert(`Mission Requested:\nType: ${type}\nDetails: ${details}`);
 };
+
 window.registerForMission = () => {
   const mission = prompt("Which mission would you like to accept?");
   const family = prompt("Enter your family name:");
   alert(`Registered for mission: ${mission}\nFamily: ${family}`);
 };
 
-// --- RANKS ---
-window.assignRank = async (rank) => {
-  if (!isAdmin) return;
-  const name = prompt(`Enter name for ${rank} rank:`);
-  if (name) {
-    adventureRanks[rank].push(name);
-    await setDoc(doc(db, "adventureRanks", "ranks"), adventureRanks);
-    updateRankUI();
-  }
-};
-async function loadAdventureRanks() {
+// ---------- Adventure Ranks Save/Load ----------
+async function loadRanks() {
   const docSnap = await getDoc(doc(db, "adventureRanks", "ranks"));
   if (docSnap.exists()) {
     adventureRanks = docSnap.data();
     updateRankUI();
   }
 }
+async function saveRanks() {
+  await setDoc(doc(db, "adventureRanks", "ranks"), adventureRanks);
+}
+window.assignRank = async (rank) => {
+  if (!isAdmin) return;
+  const name = prompt(`Enter name for ${rank} rank:`);
+  if (name) {
+    adventureRanks[rank].push(name);
+    await saveRanks();
+    updateRankUI();
+  }
+};
+
 function updateRankUI() {
   for (const rank of ["S", "A", "B", "C", "D", "E"]) {
     const el = document.getElementById(`rank${rank}`);
@@ -516,11 +568,25 @@ function updateRankUI() {
   }
 }
 
-// --- LOAD EVERYTHING ON START ---
+// --------------- Sizing / Resize -------------
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  adventureCanvas.width = window.innerWidth;
+  adventureCanvas.height = window.innerHeight;
+  render();
+  renderAdventureGrid();
+}
+
+window.addEventListener("resize", () => {
+  resizeCanvas();
+});
+
+// ----------- INIT -----------
 window.onload = async () => {
-  fitCanvasToWindow();
+  resizeCanvas();
   await loadGrid();
   await loadAdventureGrid();
-  await loadAdventureRanks();
+  await loadRanks();
   updateRankUI();
 };
