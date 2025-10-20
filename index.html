@@ -2,128 +2,146 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>BDO Hex Map & Adventure Board</title>
+  <title>BDO Hex Map, Adventure & Business Board</title>
   <link href="https://fonts.googleapis.com/css?family=Cinzel:700,400" rel="stylesheet">
   <style>
     html, body {
       margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden;
-      font-family: 'Cinzel', serif;
-      background: #222;
+      font-family: 'Cinzel', serif; background: #222;
     }
     #hexMap, #adventureGrid {
-      position: absolute;
-      left: 0; top: 0;
-      width: 100vw;
-      height: 100vh;
-      display: block;
-      z-index: 0;
-      background: transparent;
+      position: absolute; left: 0; top: 0; width: 100vw; height: 100vh; display: block; z-index: 0; background: transparent;
     }
+
+    /* --- NAV DROPDOWN --- */
+    #boardSwitcherWrap {
+      position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+      z-index: 201; display: flex; align-items: center; gap: 10px;
+      background: #3a2b1ad9; border: 2px solid #d2a85c; padding: 8px 14px; border-radius: 12px; box-shadow: 0 2px 12px #0006;
+    }
+    #boardSelect {
+      appearance: none;
+      background: #2b2115; color: #ffd77a; border: 1px solid #a97b36; border-radius: 10px; padding: 6px 14px; font-size: 16px; cursor: pointer;
+    }
+    #boardSelect:focus { outline: none; }
+
+    /* --- TOOLTIPS / PANELS --- */
     #tooltip, #advTooltip {
-      position: absolute;
-      display: none;
-      min-width: 180px;
-      background: #eee;
-      color: #222;
-      border: 2px solid #444;
-      border-radius: 12px;
-      box-shadow: 0 8px 32px #000a;
-      padding: 8px 12px;
-      font-size: 15px;
-      z-index: 1001;
-      pointer-events: none;
+      position: absolute; display: none; min-width: 180px; background: #eee; color: #222;
+      border: 2px solid #444; border-radius: 12px; box-shadow: 0 8px 32px #000a; padding: 8px 12px; font-size: 15px; z-index: 1001; pointer-events: none;
     }
     #lordPanel {
-      position: absolute;
-      display: none;
-      min-width: 210px;
-      min-height: 80px;
-      background: #444;
-      color: #fff;
-      border: 2px solid #a97b36;
-      border-radius: 14px;
-      box-shadow: 0 12px 42px #000a;
-      padding: 12px 18px 10px 18px;
-      font-family: 'Cinzel', serif;
-      z-index: 1002;
-      pointer-events: none;
+      position: absolute; display: none; min-width: 210px; min-height: 80px; background: #444; color: #fff;
+      border: 2px solid #a97b36; border-radius: 14px; box-shadow: 0 12px 42px #000a; padding: 12px 18px 10px 18px; z-index: 1002; pointer-events: none;
     }
     #lordName { font-size: 19px; font-weight: bold; margin-bottom: 5px;}
     #lordInfo { font-size: 14px; margin-bottom: 5px;}
     #lordVideo { display: block; width: 180px; height: 135px; border-radius: 9px; margin-top: 6px;}
+
+    /* --- ADMIN CHAT --- */
     #adminChat {
-      display: none;
-      position: absolute; right: 22px; bottom: 18px; width: 260px; background: #212;
-      color: #fff; border-radius: 14px; border: 2px solid #666; box-shadow: 0 3px 22px #000b;
-      z-index: 100; padding: 10px;
-      font-size: 14px;
+      display: none; position: absolute; right: 22px; bottom: 18px; width: 280px; background: #212;
+      color: #fff; border-radius: 14px; border: 2px solid #666; box-shadow: 0 3px 22px #000b; z-index: 100; padding: 10px; font-size: 14px;
     }
-    #orderList { padding: 0; margin: 0; max-height: 120px; overflow-y: auto; }
+    #orderList { padding: 0; margin: 0; max-height: 160px; overflow-y: auto; }
     #orderList li { list-style: none; margin-bottom: 6px; cursor: pointer; }
-    #orderPrompt, #registerPrompt {
-      position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%);
-      background: #fff; color: #222; padding: 24px 28px 18px 28px; border-radius: 16px; border: 2px solid #444;
-      box-shadow: 0 12px 32px #000a; font-size: 18px; display: none; z-index: 2002;
+
+    /* --- PROMPTS/MODALS --- */
+    #orderPrompt, #registerPrompt, #businessPrompt, #meetingPrompt, #editBusinessPrompt, #bulkModal, #dashboardModal {
+      position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); background: #fff; color: #222;
+      padding: 24px 28px 18px 28px; border-radius: 16px; border: 2px solid #444; box-shadow: 0 12px 32px #000a; font-size: 18px;
+      display: none; z-index: 2002; box-sizing: border-box; animation: appear 0.25s;
     }
+    #dashboardModal, #bulkModal { z-index: 2040; }
+    @keyframes appear { from { opacity:0; transform:translate(-50%,-50%) scale(0.95);} to { opacity:1; transform:translate(-50%,-50%) scale(1);} }
+
+    /* --- LOGIN --- */
     #loginBox {
       position: absolute; left: 22px; top: 24px; background: #eee; border-radius: 11px; box-shadow: 0 2px 11px #0008;
       border: 1.5px solid #777; padding: 14px 16px; z-index: 2001; font-size: 15px;
     }
-    #buttonRow {
-      position: absolute;
-      left: 22px;
-      bottom: 28px;
-      display: flex;
-      flex-direction: row;
-      z-index: 150;
+
+    /* --- BUTTON ROW --- */
+    #buttonRow { position: absolute; left: 22px; bottom: 28px; display: flex; flex-direction: row; z-index: 150; }
+    #hexButtons, #adminButtonGroup, #adventureButtons, #businessButtons {
+      display: flex; flex-direction: column; background: rgba(240,240,240,0.97); border-radius: 16px; box-shadow: 0 2px 12px #0002; padding: 11px 18px 11px 13px; margin-right: 10px;
     }
-    #hexButtons, #adminButtonGroup, #adventureButtons {
-      display: flex;
-      flex-direction: column;
-      background: rgba(240,240,240,0.97);
-      border-radius: 16px;
-      box-shadow: 0 2px 12px #0002;
-      padding: 11px 18px 11px 13px;
-      margin-right: 10px;
+    #hexButtons button, #adventureButtons button, #assignRanks button, #adminButtonGroup button, #businessButtons button {
+      font-family: 'Cinzel', serif; font-size: 16px; border-radius: 10px; background: #d2a85c; color: #222; border: none; margin: 4px 0 0 0; padding: 6px 16px; cursor: pointer; transition: background 0.15s;
     }
-    #hexButtons button, #adventureButtons button, #assignRanks button, #adminButtonGroup button {
-      font-family: 'Cinzel', serif; font-size: 16px; border-radius: 10px;
-      background: #d2a85c; color: #222; border: none; margin: 4px 0 0 0; padding: 6px 16px; cursor: pointer;
-      transition: background 0.15s;
-    }
-    #hexButtons button:hover, #adventureButtons button:hover, #assignRanks button:hover, #adminButtonGroup button:hover { background: #b78b39; }
-    #toggleViewBtn {
-      position: absolute; top: 18px; right: 22px; font-family: 'Cinzel', serif; font-size: 18px;
-      border-radius: 12px; border: none; background: #444; color: #ffd77a; padding: 8px 22px; z-index: 201;
-      cursor: pointer; font-weight: bold; box-shadow: 0 2px 10px #0006;
-    }
-    #toggleViewBtn:hover { background: #222; }
+    #hexButtons button:hover, #adventureButtons button:hover, #assignRanks button:hover, #adminButtonGroup button:hover, #businessButtons button:hover { background: #b78b39; }
+
+    /* --- ASSIGN RANKS (Adventure) --- */
     #assignRanks {
-      position: absolute; right: 28px; top: 88px; background: #2a1f13d9; border-radius: 10px;
-      border: 2px solid #d2a85c; color: #fff; padding: 13px 15px 10px 18px; font-family: 'Cinzel', serif; min-width: 220px;
-      box-shadow: 0 6px 24px #000b; z-index: 90;
+      position: absolute; right: 28px; top: 88px; background: #2a1f13d9; border-radius: 10px; border: 2px solid #d2a85c; color: #fff; padding: 13px 15px 10px 18px;
+      min-width: 220px; box-shadow: 0 6px 24px #000b; z-index: 90;
     }
     #assignRanks button { margin: 2px 8px 2px 0; padding: 3px 12px; font-size: 15px; }
     #assignRanks div { margin-bottom: 4px; }
-    #dashboardModal, #bulkModal {
-      box-sizing: border-box;
-      animation: appear 0.25s;
+
+    /* --- BUSINESS BOARD --- */
+    #businessContainer {
+      position: absolute; left: 0; top: 0; width: 100vw; height: 100vh; display: none; z-index: 0;
+      background: url('business.jpg') center/cover no-repeat fixed;
     }
-    @keyframes appear {
-      from { opacity:0; transform:scale(0.95);}
-      to { opacity:1; transform:scale(1);}
+    /* Parallax overlay + medieval vibe */
+    #businessOverlay {
+      position: absolute; inset: 0; background: radial-gradient(ellipse at center, #00000055 0%, #000000b8 70%, #000000ee 100%);
+      pointer-events: none;
     }
+    /* Candles (corners) */
+    .candle { position: absolute; width: 26px; height: 44px; background: linear-gradient(#fff6d0, #f0c86e); border-radius: 6px; box-shadow: 0 0 18px #ffea96, 0 0 34px #ffcf6b; }
+    .candle:after { content: ""; position: absolute; left: 50%; transform: translateX(-50%); top: -18px; width: 12px; height: 18px; border-radius: 50% 50% 50% 50%; background: radial-gradient(#ffe9a1, transparent 60%); animation: flicker 1.2s infinite ease-in-out; }
+    @keyframes flicker { 0%,100% { transform: translateX(-50%) scale(1); opacity: .9 } 50% { transform: translateX(-50%) scale(1.25); opacity: .6 } }
+    #candleTL { left: 18px; top: 18px; }
+    #candleTR { right: 18px; top: 18px; }
+    #candleBL { left: 18px; bottom: 18px; }
+    #candleBR { right: 18px; bottom: 18px; }
+
+    /* Scrollable card grid */
+    #businessScroll {
+      position: absolute; left: 50%; top: 56%; transform: translate(-50%, -50%);
+      width: min(1400px, 92vw); height: min(74vh, 760px); overflow: auto; padding: 18px;
+      border: 2px solid #a97b36; border-radius: 16px; background: #21160ee0; box-shadow: 0 16px 48px #000a;
+      backdrop-filter: blur(1px);
+    }
+    #businessGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .bizCard {
+      background: #3a2b1a; color: #f9e7c0; border: 2px solid #d2a85c; border-radius: 14px; padding: 14px 14px 12px 14px; position: relative;
+      box-shadow: 0 6px 22px #000a; transition: transform .15s ease, box-shadow .15s ease;
+    }
+    .bizCard:hover { transform: translateY(-2px); box-shadow: 0 10px 28px #000d; }
+    .bizHeader { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .bizLogo { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; border: 2px solid #d2a85c; background: #1b130b; }
+    .bizTitle { font-weight: 700; font-size: 18px; color: #ffe4a6; }
+    .bizField { font-size: 14px; color: #e7d9b5; margin: 4px 0; }
+    .invHeader { margin-top: 6px; font-weight: bold; cursor: pointer; user-select: none; }
+    .invList { margin: 5px 0 6px 0; padding-left: 16px; display: none; }
+    .bizActions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .bizActions button { background: #d2a85c; color: #222; border: none; border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+    .bizActions button:hover { background: #b78b39; }
+
+    /* Responsive tweaks */
     @media (max-width: 900px) {
       #adminChat, #assignRanks { width: 90vw; left: 4vw; right: unset; }
       #assignRanks { min-width: unset; }
       #buttonRow { flex-direction: column; left: 6vw; }
+      #boardSwitcherWrap { left: 50%; transform: translate(-50%, 0); top: 10px; }
+      #businessScroll { width: 94vw; height: 70vh; }
     }
   </style>
 </head>
 <body>
 
-  <!-- Toggling View -->
-  <button id="toggleViewBtn" onclick="toggleView()">Switch Board</button>
+  <!-- NAV: Dropdown -->
+  <div id="boardSwitcherWrap">
+    <span style="color:#ffd77a;font-weight:bold;">Boards</span>
+    <select id="boardSelect">
+      <option value="hex">🛡️ Kingdom Map</option>
+      <option value="adventure">⚔️ Adventure Board</option>
+      <option value="business">🏰 Business Board</option>
+    </select>
+  </div>
 
   <!-- Login Box -->
   <div id="loginBox">
@@ -134,9 +152,9 @@
     <button onclick="logout()" style="margin-top: 6px;">Logout</button>
   </div>
 
-  <!-- Button area for both modes -->
+  <!-- Button area -->
   <div id="buttonRow">
-    <!-- Hex map mode buttons -->
+    <!-- Hex map buttons -->
     <div id="hexButtons">
       <button onclick="submitOrder('attack')">⚔️ Attack</button>
       <button onclick="submitOrder('defense')">🛡️ Defense</button>
@@ -147,13 +165,21 @@
       <button onclick="registerNobleHouse()" style="margin-top:12px;">Register House</button>
       <button onclick="clearHexTile()" style="margin-top:12px;">Clear Hex Tile</button>
     </div>
-    <!-- Adventure mode main buttons (always visible when in adventure view) -->
+
+    <!-- Adventure mode buttons -->
     <div id="adventureButtons" style="display:none;">
       <button onclick="submitAdventureMission()">Mission Request</button>
       <button onclick="registerForMission()">Register for Mission</button>
       <button onclick="clearAdventureTile()" style="margin-top:12px;">Clear Adventure Tile</button>
     </div>
-    <!-- Admin tools group (always shown, but admin-only buttons hidden if not admin) -->
+
+    <!-- Business board buttons -->
+    <div id="businessButtons" style="display:none;">
+      <button onclick="openBusinessPrompt()">Register Business</button>
+      <button onclick="openMeetingPromptGeneral()" title="Request a meeting with any business">Request Meeting</button>
+    </div>
+
+    <!-- Admin tools -->
     <div id="adminButtonGroup" style="margin-left:14px;">
       <button id="effectBtn" onclick="toggleEffectMode()" style="display:none;">✨ Tile Effect</button>
       <button id="clearEffectsBtn" onclick="clearAllHexEffects()" style="display:none;">❌ Clear Effects</button>
@@ -163,15 +189,14 @@
   </div>
 
   <!-- Dashboard Modal -->
-  <div id="dashboardModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
-    background:#fff; border-radius:18px; box-shadow:0 14px 38px #000b; padding:32px 36px 20px 36px; z-index:420; min-width:410px;">
+  <div id="dashboardModal" style="display:none; min-width:410px;">
     <div style="font-size: 22px; font-weight: bold; margin-bottom: 18px;">Noble House Dashboard</div>
     <div id="dashboardContent" style="max-height:350px; overflow-y:auto; font-size:15px;"></div>
     <button onclick="closeDashboard()" style="margin-top:16px;">Close</button>
   </div>
+
   <!-- Bulk Modal -->
-  <div id="bulkModal" style="display:none; position:fixed; top:55%; left:50%; transform:translate(-50%,-50%);
-    background:#fff; border-radius:15px; box-shadow:0 9px 28px #000a; padding:28px 30px 16px 30px; z-index:410; min-width:310px;">
+  <div id="bulkModal" style="display:none; min-width:310px;">
     <div style="font-size:17px; margin-bottom:12px;">Bulk Action on Selected Hexes</div>
     <button onclick="bulkAssignHouse()">Assign House</button>
     <button onclick="bulkColor()">Change Color</button>
@@ -179,7 +204,7 @@
     <button onclick="closeBulkModal()" style="margin-left:8px;">Cancel</button>
   </div>
 
-  <!-- Order / Register Prompts -->
+  <!-- Orders / Register Prompts -->
   <div id="orderPrompt">
     <div>Submit an Order:</div>
     <label>Noble House:<br><input id="nobleHouseInput" style="width:160px"></label><br>
@@ -194,6 +219,53 @@
     <label>Heraldry:<br><input id="heraldryInput" style="width:160px"></label><br>
     <button onclick="confirmRegistration()" style="margin-right:8px;">Register</button>
     <button onclick="cancelRegistration()">Cancel</button>
+  </div>
+
+  <!-- NEW: Business Prompts -->
+  <div id="businessPrompt">
+    <div style="font-weight:bold;margin-bottom:8px;">Register Business</div>
+    <label>Name:<br><input id="bizNameInput" style="width:240px"></label><br>
+    <label>Owner (Family/House):<br><input id="bizOwnerInput" style="width:240px"></label><br>
+    <label>Description:<br><textarea id="bizDescInput" style="width:240px;height:70px;"></textarea></label><br>
+    <label>Location:<br><input id="bizLocInput" style="width:240px"></label><br>
+    <label>Hours / Event Times:<br><input id="bizHoursInput" style="width:240px" placeholder="e.g., Tue/Thu 8–10pm"></label><br>
+    <label>Logo URL:<br><input id="bizLogoInput" style="width:240px" placeholder="https://..."></label><br>
+    <button onclick="confirmBusinessRegistration()" style="margin-right:8px;">Register</button>
+    <button onclick="closeBusinessPrompt()">Cancel</button>
+  </div>
+
+  <div id="meetingPrompt">
+    <div style="font-weight:bold;margin-bottom:8px;">Request a Meeting</div>
+    <label>Your Name / House:<br><input id="meetRequesterInput" style="width:240px"></label><br>
+    <label>Message / Topic:<br><textarea id="meetMessageInput" style="width:240px;height:70px;"></textarea></label><br>
+    <input id="meetBusinessId" type="hidden">
+    <button onclick="confirmMeetingRequest()" style="margin-right:8px;">Send Request</button>
+    <button onclick="closeMeetingPrompt()">Cancel</button>
+  </div>
+
+  <div id="editBusinessPrompt">
+    <div style="font-weight:bold;margin-bottom:8px;">Edit Business</div>
+    <input id="editBizId" type="hidden">
+    <label>Name:<br><input id="editBizName" style="width:240px"></label><br>
+    <label>Owner:<br><input id="editBizOwner" style="width:240px"></label><br>
+    <label>Description:<br><textarea id="editBizDesc" style="width:240px;height:70px;"></textarea></label><br>
+    <label>Location:<br><input id="editBizLoc" style="width:240px"></label><br>
+    <label>Hours / Event Times:<br><input id="editBizHours" style="width:240px"></label><br>
+    <label>Logo URL:<br><input id="editBizLogo" style="width:240px"></label><br>
+    <div style="margin-top:8px;">
+      <button onclick="saveBusinessEdits()">Save</button>
+      <button onclick="deleteBusiness()" style="margin-left:6px;background:#b35a5a;">Delete</button>
+      <button onclick="closeEditBusinessPrompt()" style="margin-left:6px;">Cancel</button>
+    </div>
+    <hr>
+    <div style="font-weight:bold;margin-bottom:6px;">Inventory</div>
+    <div>
+      <input id="invItemName" placeholder="Item" style="width:110px">
+      <input id="invItemPrice" placeholder="Price" style="width:90px">
+      <input id="invItemStock" placeholder="Stock" style="width:60px">
+      <button onclick="addInventoryItem()">Add</button>
+    </div>
+    <ul id="invListEditor" style="max-height:120px;overflow:auto;margin-top:8px;"></ul>
   </div>
 
   <!-- Main Map & Adventure Grid -->
@@ -251,11 +323,23 @@
     <div id="advTooltip"></div>
   </div>
 
+  <!-- NEW: Business Board -->
+  <div id="businessContainer">
+    <div id="businessOverlay"></div>
+    <div id="candleTL" class="candle"></div>
+    <div id="candleTR" class="candle"></div>
+    <div id="candleBL" class="candle"></div>
+    <div id="candleBR" class="candle"></div>
+    <div id="businessScroll">
+      <div id="businessGrid"></div>
+    </div>
+  </div>
+
   <!-- Admin Orders/Chat Box -->
   <div id="adminChat">
-    <div style="font-weight:bold; margin-bottom:6px;">Admin Order Log</div>
+    <div style="font-weight:bold; margin-bottom:6px;">Admin Log</div>
     <ul id="orderList"></ul>
-    <button onclick="clearOrders()" style="margin-top:8px;">Clear All Orders</button>
+    <button onclick="clearOrders()" style="margin-top:8px;">Clear All Entries</button>
   </div>
 
   <!-- Load your script -->
