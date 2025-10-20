@@ -61,21 +61,24 @@ function getHexLayout() {
 /* ------------------------ AUTH / UI INIT ------------------------ */
 onAuthStateChanged(auth, user => {
   isAdmin = !!user;
-  document.getElementById("adminChat").style.display = isAdmin ? "block" : "none";
-  document.getElementById("loginBox").style.display = "block";
+  const adminChat = document.getElementById("adminChat");
+  if (adminChat) adminChat.style.display = isAdmin ? "block" : "none";
+
+  const loginBox = document.getElementById("loginBox");
+  if (loginBox) loginBox.style.display = "block";
+
   refreshViewVisibility();
   updateRankUI();
   if (isAdmin) loadOrders();
 
-  // Show who is logged in (helps verify admin is active)
-  const who = document.getElementById("loginBox");
-  if (who) {
+  // "Who am I" indicator
+  if (loginBox) {
     let badge = document.getElementById("whoami");
     if (!badge) {
       badge = document.createElement("div");
       badge.id = "whoami";
       badge.style.marginTop = "6px";
-      who.appendChild(badge);
+      loginBox.appendChild(badge);
     }
     badge.textContent = isAdmin ? `Signed in: ${user.email || user.uid}` : "Not signed in";
   }
@@ -88,17 +91,18 @@ window.login = () => {
     .then(() => alert("Logged in!"))
     .catch(err => alert("Login error: " + err.message));
 };
-
-window.logout = () => {
-  signOut(auth);
-  alert("Logged out.");
-};
+window.logout = () => { signOut(auth); alert("Logged out."); };
 
 /* ------------------------ DROPDOWN SWITCHER ------------------------ */
-const boardSelect = document.getElementById("boardSelect");
-boardSelect.addEventListener("change", () => {
-  currentView = boardSelect.value;
-  // Reset transient UI
+let boardSelect = null;
+
+function handleBoardChange() {
+  if (!boardSelect) return;
+  const next = boardSelect.value;
+  if (!next) return;
+  currentView = next;
+
+  // Hide hover bits when switching
   const tip = document.getElementById("tooltip");
   const lpanel = document.getElementById("lordPanel");
   const advTip = document.getElementById("advTooltip");
@@ -107,6 +111,7 @@ boardSelect.addEventListener("change", () => {
   if (advTip) advTip.style.display = "none";
 
   refreshViewVisibility();
+
   if (currentView === "adventure") {
     loadAdventureGrid().then(() => renderAdventureGrid());
   } else if (currentView === "hex") {
@@ -114,26 +119,52 @@ boardSelect.addEventListener("change", () => {
   } else if (currentView === "business") {
     renderBusinesses();
   }
-});
+}
+
+function initBoardSelect() {
+  boardSelect = document.getElementById("boardSelect");
+  if (!boardSelect) {
+    console.warn("boardSelect not found. Ensure <select id=\"boardSelect\"> exists in HTML.");
+    return;
+  }
+  boardSelect.removeEventListener("change", handleBoardChange);
+  boardSelect.addEventListener("change", handleBoardChange);
+  boardSelect.value = currentView; // sync UI
+}
 
 function refreshViewVisibility() {
   const inAdventureView = currentView === "adventure";
   const inHexView = currentView === "hex";
   const inBusinessView = currentView === "business";
 
-  document.getElementById("hexCanvasContainer").style.display = inHexView ? "block" : "none";
-  document.getElementById("adventureCanvasContainer").style.display = inAdventureView ? "block" : "none";
-  document.getElementById("businessContainer").style.display = inBusinessView ? "block" : "none";
+  const show = (id, on) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = on ? (id.endsWith("Buttons") ? "flex" : "block") : "none";
+  };
 
-  document.getElementById("hexButtons").style.display = inHexView ? "flex" : "none";
-  document.getElementById("adventureButtons").style.display = inAdventureView ? "flex" : "none";
-  document.getElementById("businessButtons").style.display = inBusinessView ? "flex" : "none";
+  // Containers
+  show("hexCanvasContainer", inHexView);
+  show("adventureCanvasContainer", inAdventureView);
+  show("businessContainer", inBusinessView);
 
-  document.getElementById("assignRanks").style.display = inAdventureView ? "block" : "none";
-  document.getElementById("effectBtn").style.display = isAdmin && inHexView ? "block" : "none";
-  document.getElementById("clearEffectsBtn").style.display = isAdmin && inHexView ? "block" : "none";
-  document.getElementById("bulkBtn").style.display = isAdmin && inHexView ? "block" : "none";
-  document.getElementById("dashboardBtn").style.display = inHexView ? "block" : "none";
+  // Button groups
+  show("hexButtons", inHexView);
+  show("adventureButtons", inAdventureView);
+  show("businessButtons", inBusinessView);
+
+  // Hex-only controls
+  const effectBtn = document.getElementById("effectBtn");
+  const clearEffectsBtn = document.getElementById("clearEffectsBtn");
+  const bulkBtn = document.getElementById("bulkBtn");
+  const dashboardBtn = document.getElementById("dashboardBtn");
+  if (effectBtn) effectBtn.style.display = isAdmin && inHexView ? "block" : "none";
+  if (clearEffectsBtn) clearEffectsBtn.style.display = isAdmin && inHexView ? "block" : "none";
+  if (bulkBtn) bulkBtn.style.display = isAdmin && inHexView ? "block" : "none";
+  if (dashboardBtn) dashboardBtn.style.display = inHexView ? "block" : "none";
+
+  // Adventure-only controls
+  show("assignRanks", inAdventureView);
 
   resizeCanvas();
 }
@@ -263,8 +294,10 @@ window.toggleEffectMode = function() {
   if (!isAdmin) return;
   effectMode = !effectMode;
   bulkMode = false;
-  document.getElementById("effectBtn").style.background = effectMode ? "#ffd77a" : "";
-  document.getElementById("bulkBtn").style.background = "";
+  const eff = document.getElementById("effectBtn");
+  const bulk = document.getElementById("bulkBtn");
+  if (eff) eff.style.background = effectMode ? "#ffd77a" : "";
+  if (bulk) bulk.style.background = "";
   if (effectMode && Object.keys(hexEffects).length > 0) requestAnimationFrame(render);
 };
 window.clearAllHexEffects = async function() {
@@ -280,21 +313,23 @@ window.clearAllHexEffects = async function() {
     render();
   }
 };
-
 window.toggleBulkMode = function() {
   if (!isAdmin) return;
   bulkMode = !bulkMode;
   effectMode = false;
-  document.getElementById("bulkBtn").style.background = bulkMode ? "#ffd77a" : "";
-  document.getElementById("effectBtn").style.background = "";
+  const bulk = document.getElementById("bulkBtn");
+  const eff = document.getElementById("effectBtn");
+  if (bulk) bulk.style.background = bulkMode ? "#ffd77a" : "";
+  if (eff) eff.style.background = "";
   selectedHexes = [];
   bulkRect = null;
   render();
 };
 
-function showBulkModal() { document.getElementById("bulkModal").style.display = "block"; }
+function showBulkModal() { const m = document.getElementById("bulkModal"); if (m) m.style.display = "block"; }
 window.closeBulkModal = function() {
-  document.getElementById("bulkModal").style.display = "none";
+  const m = document.getElementById("bulkModal");
+  if (m) m.style.display = "none";
   selectedHexes = [];
   bulkRect = null;
   render();
@@ -354,16 +389,13 @@ function hexToPixel(q, r) {
   const y = hexSize * 1.5 * r + offsetY;
   return { x, y };
 }
-
 function pixelToHex(x, y) {
   const { hexSize, offsetX, offsetY } = getHexLayout();
-  x -= offsetX;
-  y -= offsetY;
+  x -= offsetX; y -= offsetY;
   const q = ((Math.sqrt(3) / 3 * x) - (1 / 3 * y)) / hexSize;
   const r = (2 / 3 * y) / hexSize;
   return hexRound(q, r);
 }
-
 function hexRound(q, r) {
   let x = q, z = r, y = -x - z;
   let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
@@ -438,6 +470,7 @@ canvas.addEventListener("click", async (e) => {
   const key = `${q},${r}`;
   let data = hexGrid[key] || { q, r, color: "rgba(0,0,0,0)", title: "Untitled", info: "", image: "", lord: "", lordInfo: "", lordVideo: "", effect: false };
 
+  // Clear tile
   if (window.clearHexMode) {
     await setDoc(doc(db, "hexTiles", key), { q, r, color: "rgba(0,0,0,0)", title: "", info: "", image: "", lord: "", lordInfo: "", lordVideo: "", effect: false });
     hexGrid[key] = { q, r, color: "rgba(0,0,0,0)", title: "", info: "", image: "", lord: "", lordInfo: "", lordVideo: "", effect: false };
@@ -446,6 +479,7 @@ canvas.addEventListener("click", async (e) => {
     render(); return;
   }
 
+  // Glow toggle
   if (effectMode && isAdmin) {
     data.effect = !!data.effect ? false : true;
     hexGrid[key] = data;
@@ -455,7 +489,7 @@ canvas.addEventListener("click", async (e) => {
     return;
   }
 
-  if (bulkMode) return;
+  if (bulkMode) return; // Don’t edit while bulk selecting
 
   const title = prompt("Enter title:", data.title);
   const info = prompt("Enter description:", data.info);
@@ -642,20 +676,24 @@ adventureCanvas.addEventListener("mousemove", (e) => {
   const mouseX = e.clientX - rect.left; const mouseY = e.clientY - rect.top;
   const c = Math.floor((mouseX - offsetX) / cellSize); const r = Math.floor((mouseY - offsetY) / cellSize);
   if (c < 0 || r < 0 || c >= advGridCols || r >= advGridRows) {
-    advHover = null; document.getElementById("advTooltip").style.display = "none"; renderAdventureGrid(); return;
+    advHover = null; const t = document.getElementById("advTooltip"); if (t) t.style.display = "none"; renderAdventureGrid(); return;
   }
   advHover = { c, r }; renderAdventureGrid();
   const key = `${c},${r}`; const cell = adventureGrid[key];
+  const advTooltip = document.getElementById("advTooltip");
   if (cell && (cell.type || cell.details || cell.image)) {
-    const advTooltip = document.getElementById("advTooltip");
-    advTooltip.style.display = "block";
-    advTooltip.style.left = (e.clientX + 15) + "px";
-    advTooltip.style.top = (e.clientY + 25) + "px";
-    advTooltip.innerHTML =
-      `<strong>${cell.type || "Unknown Mission"}</strong><br>` +
-      (cell.details ? cell.details + "<br>" : "") +
-      (cell.image ? `<img src="${cell.image}" style="width:90px; margin-top:5px;">` : "");
-  } else document.getElementById("advTooltip").style.display = "none";
+    if (advTooltip) {
+      advTooltip.style.display = "block";
+      advTooltip.style.left = (e.clientX + 15) + "px";
+      advTooltip.style.top = (e.clientY + 25) + "px";
+      advTooltip.innerHTML =
+        `<strong>${cell.type || "Unknown Mission"}</strong><br>` +
+        (cell.details ? cell.details + "<br>" : "") +
+        (cell.image ? `<img src="${cell.image}" style="width:90px; margin-top:5px;">` : "");
+    }
+  } else {
+    if (advTooltip) advTooltip.style.display = "none";
+  }
 });
 async function loadAdventureGrid() {
   adventureGrid = {};
@@ -690,25 +728,27 @@ window.clearAllRank = async (rank) => {
 function updateRankUI() {
   for (const rank of ["S", "A", "B", "C", "D", "E"]) {
     const el = document.getElementById(`rank${rank}`);
+    if (!el) continue;
     el.textContent = adventureRanks[rank] ? adventureRanks[rank].join(", ") : "";
+    const addBtn = document.getElementById(`addRank${rank}`);
+    const remBtn = document.getElementById(`removeRank${rank}`);
+    const clrBtn = document.getElementById(`clearRank${rank}`);
     if (isAdmin) {
-      document.getElementById(`addRank${rank}`).style.display = "inline";
-      document.getElementById(`removeRank${rank}`).style.display = "inline";
-      document.getElementById(`clearRank${rank}`).style.display = "inline";
+      if (addBtn) addBtn.style.display = "inline";
+      if (remBtn) remBtn.style.display = "inline";
+      if (clrBtn) clrBtn.style.display = "inline";
     } else {
-      document.getElementById(`addRank${rank}`).style.display = "none";
-      document.getElementById(`removeRank${rank}`).style.display = "none";
-      document.getElementById(`clearRank${rank}`).style.display = "none";
+      if (addBtn) addBtn.style.display = "none";
+      if (remBtn) remBtn.style.display = "none";
+      if (clrBtn) clrBtn.style.display = "none";
     }
   }
 }
 
 /* ------------------------ RESIZE ------------------------ */
 function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  adventureCanvas.width = window.innerWidth;
-  adventureCanvas.height = window.innerHeight;
+  if (canvas) { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+  if (adventureCanvas) { adventureCanvas.width = window.innerWidth; adventureCanvas.height = window.innerHeight; }
   if (currentView === "hex") render();
   if (currentView === "adventure") renderAdventureGrid();
   if (Object.keys(hexEffects).length > 0) requestAnimationFrame(render);
@@ -720,7 +760,7 @@ let businesses = [];        // [{id, name, owner, description, location, hours, 
 let editingBusiness = null; // obj reference while editing
 let unsubscribeBusinesses = null;
 
-// Improved error helper: only say "log in" if not logged; otherwise surface rules error.
+// Improved error helper
 function showAdminWriteError(err) {
   console.error(err);
   if (!auth.currentUser) {
@@ -794,6 +834,7 @@ function renderBusinesses() {
         ${isAdmin ? `<button onclick="openEditBusiness('${biz.id}')">✏️ Edit</button>` : ""}
       </div>
     `;
+    // Collapsible inventory
     const invHeader = card.querySelector(".invHeader");
     const invList = card.querySelector(".invList");
     invHeader.addEventListener("click", () => {
@@ -803,7 +844,7 @@ function renderBusinesses() {
   });
 }
 
-/* --- Register business (open to players, or require login via rules if preferred) --- */
+/* --- Register business (public create; admin edits enforced by rules) --- */
 window.openBusinessPrompt = () => {
   document.getElementById("bizNameInput").value = "";
   document.getElementById("bizOwnerInput").value = "";
@@ -830,7 +871,7 @@ window.confirmBusinessRegistration = async () => {
       name, owner, description, location, hours, logoURL, inventory: []
     });
 
-    // Best-effort admin log (ignore if restricted)
+    // Best-effort admin log
     try {
       await addDoc(collection(db, "orders"), {
         type: "business",
@@ -880,7 +921,6 @@ window.closeEditBusinessPrompt = () => {
   document.getElementById("editBusinessPrompt").style.display = "none";
   editingBusiness = null;
 };
-
 window.saveBusinessEdits = async () => {
   if (!isAdmin) { alert("Admin login required to edit businesses."); return; }
   if (!editingBusiness) return;
@@ -895,7 +935,6 @@ window.saveBusinessEdits = async () => {
     closeEditBusinessPrompt();
   } catch (err) { showAdminWriteError(err); }
 };
-
 window.deleteBusiness = async () => {
   if (!isAdmin) { alert("Admin login required to delete businesses."); return; }
   if (!editingBusiness) return;
@@ -931,7 +970,7 @@ window.removeInventoryItem = async (idx) => {
   } catch (err) { showAdminWriteError(err); }
 };
 
-/* --- Meeting Requests (open to players) --- */
+/* --- Meeting Requests (public create, admin reads) --- */
 window.openMeetingPrompt = (businessId) => {
   document.getElementById("meetBusinessId").value = businessId;
   document.getElementById("meetRequesterInput").value = "";
@@ -985,9 +1024,15 @@ window.onload = async () => {
   await loadGrid();
   await loadAdventureGrid();
   await loadRanks();
-  await loadBusinesses(); // attaches onSnapshot listener
+  await loadBusinesses(); // real-time listener
   updateRankUI();
   renderBusinesses();
-  document.getElementById("boardSelect").value = "hex";
+
+  // initialize dropdown AFTER DOM exists
+  initBoardSelect();
+
+  // set starting view/UI
+  if (boardSelect) boardSelect.value = "hex";
+  currentView = "hex";
   refreshViewVisibility();
 };
