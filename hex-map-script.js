@@ -15,7 +15,9 @@ import {
   collection,
   addDoc,
   deleteDoc,
-  onSnapshot
+  onSnapshot,
+  query,            // ⬅️ added
+  orderBy           // ⬅️ added
 } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -59,6 +61,8 @@ function getHexLayout() {
 }
 
 /* ------------------------ AUTH / UI INIT ------------------------ */
+let unsubscribeOrders = null; // ⬅️ real-time admin log
+
 onAuthStateChanged(auth, user => {
   isAdmin = !!user;
   const adminChat = document.getElementById("adminChat");
@@ -69,7 +73,15 @@ onAuthStateChanged(auth, user => {
 
   refreshViewVisibility();
   updateRankUI();
-  if (isAdmin) loadOrders();
+
+  // Live admin log for signed-in admins
+  if (isAdmin) {
+    subscribeOrders();
+  } else {
+    if (unsubscribeOrders) { unsubscribeOrders(); unsubscribeOrders = null; }
+    const list = document.getElementById("orderList");
+    if (list) list.innerHTML = "";
+  }
 
   // "Who am I" indicator
   if (loginBox) {
@@ -174,9 +186,12 @@ window.submitOrder = (type) => {
   currentOrderType = type;
   document.getElementById("orderPrompt").style.display = "block";
 };
+
+// ⬇️ Updated: robust guest submission (orders)
 window.confirmOrder = async () => {
   const house = document.getElementById("nobleHouseInput").value;
   const target = document.getElementById("targetInput").value;
+
   let emoji;
   switch (currentOrderType) {
     case "attack": emoji = "⚔️"; break;
@@ -187,31 +202,64 @@ window.confirmOrder = async () => {
     case "diplomacy": emoji = "🕊️"; break;
     default: emoji = "❔";
   }
-  const message = `${emoji} ${house} issues a ${currentOrderType.toUpperCase()} order targeting ${target}`;
-  await addDoc(collection(db, "orders"), { type: currentOrderType, house, target, message, timestamp: Date.now() });
-  document.getElementById("orderPrompt").style.display = "none";
-  document.getElementById("nobleHouseInput").value = "";
-  document.getElementById("targetInput").value = "";
-  if (isAdmin) loadOrders();
+  const message = `${emoji} ${house} issues a ${currentOrderType?.toUpperCase() || "ORDER"} targeting ${target}`;
+
+  try {
+    await addDoc(collection(db, "orders"), {
+      type: currentOrderType || "order",
+      house, target, message,
+      timestamp: Date.now()
+    });
+
+    document.getElementById("orderPrompt").style.display = "none";
+    document.getElementById("nobleHouseInput").value = "";
+    document.getElementById("targetInput").value = "";
+
+    alert("Order submitted!");
+    // Admin log updates live via subscribeOrders()
+  } catch (err) {
+    console.error("Order submission failed:", err);
+    alert("Could not submit the order. If this is a guest submission, ensure Firestore rules allow public CREATEs to /orders.");
+  }
 };
+
 window.cancelOrder = () => document.getElementById("orderPrompt").style.display = "none";
 
 window.registerNobleHouse = () => document.getElementById("registerPrompt").style.display = "block";
+
+// ⬇️ Updated: robust guest submission (registrations)
 window.confirmRegistration = async () => {
   const family = document.getElementById("familyNameInput").value;
   const domain = document.getElementById("domainInput").value;
   const heraldry = document.getElementById("heraldryInput").value;
+
   const message = `🏰 Noble House Registered:\nFamily: ${family}\nDomain: ${domain}\nHeraldry: ${heraldry}`;
-  await addDoc(collection(db, "orders"), { type: "registration", house: family, target: domain, family, domain, heraldry, message, timestamp: Date.now() });
-  document.getElementById("registerPrompt").style.display = "none";
-  document.getElementById("familyNameInput").value = "";
-  document.getElementById("domainInput").value = "";
-  document.getElementById("heraldryInput").value = "";
-  if (isAdmin) loadOrders();
+
+  try {
+    await addDoc(collection(db, "orders"), {
+      type: "registration",
+      house: family,
+      target: domain,
+      family, domain, heraldry, message,
+      timestamp: Date.now()
+    });
+
+    document.getElementById("registerPrompt").style.display = "none";
+    document.getElementById("familyNameInput").value = "";
+    document.getElementById("domainInput").value = "";
+    document.getElementById("heraldryInput").value = "";
+
+    alert("Registration submitted!");
+    // Admin log updates live via subscribeOrders()
+  } catch (err) {
+    console.error("Registration failed:", err);
+    alert("Could not register. If this is a guest submission, ensure Firestore rules allow public CREATEs to /orders.");
+  }
 };
+
 window.cancelRegistration = () => document.getElementById("registerPrompt").style.display = "none";
 
-/* ------------------------ ADMIN LOG ------------------------ */
+/* ------------------------ ADMIN LOG (real-time) ------------------------ */
 let highlightedOrders = [];
 const hexGrid = {};
 let hexEffects = {}; // { "q,r": true }
@@ -236,23 +284,44 @@ function clearOrderHighlights() {
   highlightedOrders = [];
   render();
 }
-window.loadOrders = async () => {
+
+// ⬇️ NEW: real-time subscription for orders
+function renderOrdersListFromSnapshot(snapshot) {
   const list = document.getElementById("orderList");
+  if (!list) return;
   list.innerHTML = "";
-  const querySnapshot = await getDocs(collection(db, "orders"));
-  querySnapshot.forEach(docSnap => {
+  snapshot.forEach(docSnap => {
     const data = docSnap.data();
     const li = document.createElement("li");
-    li.textContent = `[${data.type}] ${data.message || `${data.house} -> ${data.target}`}`;
+    li.textContent = `[${data.type}] ${data.message || `${data.house || "?"} -> ${data.target || "?"}`}`;
     li.style.cursor = "pointer";
     li.onclick = () => highlightOrderTargets(data);
     list.appendChild(li);
   });
-};
+}
+function subscribeOrders() {
+  if (unsubscribeOrders) { unsubscribeOrders(); unsubscribeOrders = null; }
+  const qRef = query(collection(db, "orders"), orderBy("timestamp", "desc"));
+  unsubscribeOrders = onSnapshot(qRef, (snap) => {
+    renderOrdersListFromSnapshot(snap);
+  }, (err) => {
+    console.error("orders onSnapshot error:", err);
+  });
+}
+
 window.clearOrders = async () => {
-  const querySnapshot = await getDocs(collection(db, "orders"));
-  querySnapshot.forEach(async docSnap => { await deleteDoc(doc(db, "orders", docSnap.id)); });
-  document.getElementById("orderList").innerHTML = "";
+  // Optional: keep this for admins; wrap in try/catch
+  try {
+    const querySnapshot = await getDocs(collection(db, "orders"));
+    for (const docSnap of querySnapshot.docs) {
+      await deleteDoc(doc(db, "orders", docSnap.id));
+    }
+    const list = document.getElementById("orderList");
+    if (list) list.innerHTML = "";
+  } catch (err) {
+    console.error("Clear orders failed:", err);
+    alert("Could not clear orders. Check Firestore rules for delete permissions.");
+  }
 };
 
 /* ------------------------ ADMIN & DASHBOARD (Hex) ------------------------ */
@@ -883,19 +952,10 @@ window.confirmBusinessRegistration = async () => {
     } catch (_) {}
 
     document.getElementById("businessPrompt").style.display = "none";
-    if (isAdmin) loadOrders();
+    // Admin log auto-updates via subscribeOrders()
   } catch (err) {
     console.error("Registration failed:", err);
-    if (!auth.currentUser) {
-      alert("Please log in with your admin account to edit the Business Board and try again.");
-    } else if (err && err.code === "permission-denied") {
-      alert(
-        "Permission denied by Firestore rules for Business registration. " +
-        "Update your rules so logged-in admins can create in /businesses."
-      );
-    } else {
-      alert("Could not register the business. " + (err?.message || "Unknown error"));
-    }
+    alert("Could not register the business. If this is a guest submission, ensure Firestore rules allow public CREATEs to /businesses and /orders.");
   }
 };
 
@@ -1011,7 +1071,7 @@ window.confirmMeetingRequest = async () => {
     } catch (_) {}
 
     document.getElementById("meetingPrompt").style.display = "none";
-    if (isAdmin) loadOrders();
+    // Admin log auto-updates via subscribeOrders()
   } catch (err) {
     console.error("Meeting request failed:", err);
     alert("Could not send meeting request. Please try again shortly.");
