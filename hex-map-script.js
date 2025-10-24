@@ -15,9 +15,7 @@ import {
   collection,
   addDoc,
   deleteDoc,
-  onSnapshot,
-  query,            // ⬅️ added
-  orderBy           // ⬅️ added
+  onSnapshot
 } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -46,6 +44,10 @@ const REFERENCE_HEIGHT = 1440;
 const gridCols = 25;
 const gridRows = 14;
 
+/* Capital edit modes (admin) */
+let capitalMode = false;
+let clearCapitalMode = false;
+
 /* ------------------------ LAYOUT HELPERS ------------------------ */
 function getHexLayout() {
   const screenW = window.innerWidth;
@@ -61,8 +63,6 @@ function getHexLayout() {
 }
 
 /* ------------------------ AUTH / UI INIT ------------------------ */
-let unsubscribeOrders = null; // ⬅️ real-time admin log
-
 onAuthStateChanged(auth, user => {
   isAdmin = !!user;
   const adminChat = document.getElementById("adminChat");
@@ -73,17 +73,8 @@ onAuthStateChanged(auth, user => {
 
   refreshViewVisibility();
   updateRankUI();
+  if (isAdmin) loadOrders();
 
-  // Live admin log for signed-in admins
-  if (isAdmin) {
-    subscribeOrders();
-  } else {
-    if (unsubscribeOrders) { unsubscribeOrders(); unsubscribeOrders = null; }
-    const list = document.getElementById("orderList");
-    if (list) list.innerHTML = "";
-  }
-
-  // "Who am I" indicator
   if (loginBox) {
     let badge = document.getElementById("whoami");
     if (!badge) {
@@ -114,7 +105,6 @@ function handleBoardChange() {
   if (!next) return;
   currentView = next;
 
-  // Hide hover bits when switching
   const tip = document.getElementById("tooltip");
   const lpanel = document.getElementById("lordPanel");
   const advTip = document.getElementById("advTooltip");
@@ -136,12 +126,12 @@ function handleBoardChange() {
 function initBoardSelect() {
   boardSelect = document.getElementById("boardSelect");
   if (!boardSelect) {
-    console.warn("boardSelect not found. Ensure <select id=\"boardSelect\"> exists in HTML.");
+    console.warn('boardSelect not found. Ensure <select id="boardSelect"> exists in HTML.');
     return;
   }
   boardSelect.removeEventListener("change", handleBoardChange);
   boardSelect.addEventListener("change", handleBoardChange);
-  boardSelect.value = currentView; // sync UI
+  boardSelect.value = currentView;
 }
 
 function refreshViewVisibility() {
@@ -155,27 +145,28 @@ function refreshViewVisibility() {
     el.style.display = on ? (id.endsWith("Buttons") ? "flex" : "block") : "none";
   };
 
-  // Containers
   show("hexCanvasContainer", inHexView);
   show("adventureCanvasContainer", inAdventureView);
   show("businessContainer", inBusinessView);
 
-  // Button groups
   show("hexButtons", inHexView);
   show("adventureButtons", inAdventureView);
   show("businessButtons", inBusinessView);
 
-  // Hex-only controls
   const effectBtn = document.getElementById("effectBtn");
   const clearEffectsBtn = document.getElementById("clearEffectsBtn");
   const bulkBtn = document.getElementById("bulkBtn");
   const dashboardBtn = document.getElementById("dashboardBtn");
+  const setCapitalBtn = document.getElementById("setCapitalBtn");
+  const clearCapitalBtn = document.getElementById("clearCapitalBtn");
+
   if (effectBtn) effectBtn.style.display = isAdmin && inHexView ? "block" : "none";
   if (clearEffectsBtn) clearEffectsBtn.style.display = isAdmin && inHexView ? "block" : "none";
   if (bulkBtn) bulkBtn.style.display = isAdmin && inHexView ? "block" : "none";
   if (dashboardBtn) dashboardBtn.style.display = inHexView ? "block" : "none";
+  if (setCapitalBtn) setCapitalBtn.style.display = isAdmin && inHexView ? "block" : "none";
+  if (clearCapitalBtn) clearCapitalBtn.style.display = isAdmin && inHexView ? "block" : "none";
 
-  // Adventure-only controls
   show("assignRanks", inAdventureView);
 
   resizeCanvas();
@@ -186,12 +177,9 @@ window.submitOrder = (type) => {
   currentOrderType = type;
   document.getElementById("orderPrompt").style.display = "block";
 };
-
-// ⬇️ Updated: robust guest submission (orders)
 window.confirmOrder = async () => {
   const house = document.getElementById("nobleHouseInput").value;
   const target = document.getElementById("targetInput").value;
-
   let emoji;
   switch (currentOrderType) {
     case "attack": emoji = "⚔️"; break;
@@ -202,67 +190,34 @@ window.confirmOrder = async () => {
     case "diplomacy": emoji = "🕊️"; break;
     default: emoji = "❔";
   }
-  const message = `${emoji} ${house} issues a ${currentOrderType?.toUpperCase() || "ORDER"} targeting ${target}`;
-
-  try {
-    await addDoc(collection(db, "orders"), {
-      type: currentOrderType || "order",
-      house, target, message,
-      timestamp: Date.now()
-    });
-
-    document.getElementById("orderPrompt").style.display = "none";
-    document.getElementById("nobleHouseInput").value = "";
-    document.getElementById("targetInput").value = "";
-
-    alert("Order submitted!");
-    // Admin log updates live via subscribeOrders()
-  } catch (err) {
-    console.error("Order submission failed:", err);
-    alert("Could not submit the order. If this is a guest submission, ensure Firestore rules allow public CREATEs to /orders.");
-  }
+  const message = `${emoji} ${house} issues a ${currentOrderType.toUpperCase()} order targeting ${target}`;
+  await addDoc(collection(db, "orders"), { type: currentOrderType, house, target, message, timestamp: Date.now() });
+  document.getElementById("orderPrompt").style.display = "none";
+  document.getElementById("nobleHouseInput").value = "";
+  document.getElementById("targetInput").value = "";
+  if (isAdmin) loadOrders();
 };
-
 window.cancelOrder = () => document.getElementById("orderPrompt").style.display = "none";
 
 window.registerNobleHouse = () => document.getElementById("registerPrompt").style.display = "block";
-
-// ⬇️ Updated: robust guest submission (registrations)
 window.confirmRegistration = async () => {
   const family = document.getElementById("familyNameInput").value;
   const domain = document.getElementById("domainInput").value;
   const heraldry = document.getElementById("heraldryInput").value;
-
   const message = `🏰 Noble House Registered:\nFamily: ${family}\nDomain: ${domain}\nHeraldry: ${heraldry}`;
-
-  try {
-    await addDoc(collection(db, "orders"), {
-      type: "registration",
-      house: family,
-      target: domain,
-      family, domain, heraldry, message,
-      timestamp: Date.now()
-    });
-
-    document.getElementById("registerPrompt").style.display = "none";
-    document.getElementById("familyNameInput").value = "";
-    document.getElementById("domainInput").value = "";
-    document.getElementById("heraldryInput").value = "";
-
-    alert("Registration submitted!");
-    // Admin log updates live via subscribeOrders()
-  } catch (err) {
-    console.error("Registration failed:", err);
-    alert("Could not register. If this is a guest submission, ensure Firestore rules allow public CREATEs to /orders.");
-  }
+  await addDoc(collection(db, "orders"), { type: "registration", house: family, target: domain, family, domain, heraldry, message, timestamp: Date.now() });
+  document.getElementById("registerPrompt").style.display = "none";
+  document.getElementById("familyNameInput").value = "";
+  document.getElementById("domainInput").value = "";
+  document.getElementById("heraldryInput").value = "";
+  if (isAdmin) loadOrders();
 };
-
 window.cancelRegistration = () => document.getElementById("registerPrompt").style.display = "none";
 
-/* ------------------------ ADMIN LOG (real-time) ------------------------ */
+/* ------------------------ ADMIN LOG ------------------------ */
 let highlightedOrders = [];
 const hexGrid = {};
-let hexEffects = {}; // { "q,r": true }
+let hexEffects = {};
 
 function syncHexEffectsWithGrid() {
   hexEffects = {};
@@ -284,44 +239,23 @@ function clearOrderHighlights() {
   highlightedOrders = [];
   render();
 }
-
-// ⬇️ NEW: real-time subscription for orders
-function renderOrdersListFromSnapshot(snapshot) {
+window.loadOrders = async () => {
   const list = document.getElementById("orderList");
-  if (!list) return;
   list.innerHTML = "";
-  snapshot.forEach(docSnap => {
+  const querySnapshot = await getDocs(collection(db, "orders"));
+  querySnapshot.forEach(docSnap => {
     const data = docSnap.data();
     const li = document.createElement("li");
-    li.textContent = `[${data.type}] ${data.message || `${data.house || "?"} -> ${data.target || "?"}`}`;
+    li.textContent = `[${data.type}] ${data.message || `${data.house} -> ${data.target}`}`;
     li.style.cursor = "pointer";
     li.onclick = () => highlightOrderTargets(data);
     list.appendChild(li);
   });
-}
-function subscribeOrders() {
-  if (unsubscribeOrders) { unsubscribeOrders(); unsubscribeOrders = null; }
-  const qRef = query(collection(db, "orders"), orderBy("timestamp", "desc"));
-  unsubscribeOrders = onSnapshot(qRef, (snap) => {
-    renderOrdersListFromSnapshot(snap);
-  }, (err) => {
-    console.error("orders onSnapshot error:", err);
-  });
-}
-
+};
 window.clearOrders = async () => {
-  // Optional: keep this for admins; wrap in try/catch
-  try {
-    const querySnapshot = await getDocs(collection(db, "orders"));
-    for (const docSnap of querySnapshot.docs) {
-      await deleteDoc(doc(db, "orders", docSnap.id));
-    }
-    const list = document.getElementById("orderList");
-    if (list) list.innerHTML = "";
-  } catch (err) {
-    console.error("Clear orders failed:", err);
-    alert("Could not clear orders. Check Firestore rules for delete permissions.");
-  }
+  const querySnapshot = await getDocs(collection(db, "orders"));
+  querySnapshot.forEach(async docSnap => { await deleteDoc(doc(db, "orders", docSnap.id)); });
+  document.getElementById("orderList").innerHTML = "";
 };
 
 /* ------------------------ ADMIN & DASHBOARD (Hex) ------------------------ */
@@ -363,10 +297,16 @@ window.toggleEffectMode = function() {
   if (!isAdmin) return;
   effectMode = !effectMode;
   bulkMode = false;
+  capitalMode = false;
+  clearCapitalMode = false;
   const eff = document.getElementById("effectBtn");
   const bulk = document.getElementById("bulkBtn");
+  const cap = document.getElementById("setCapitalBtn");
+  const clrCap = document.getElementById("clearCapitalBtn");
   if (eff) eff.style.background = effectMode ? "#ffd77a" : "";
   if (bulk) bulk.style.background = "";
+  if (cap) cap.style.background = "";
+  if (clrCap) clrCap.style.background = "";
   if (effectMode && Object.keys(hexEffects).length > 0) requestAnimationFrame(render);
 };
 window.clearAllHexEffects = async function() {
@@ -386,13 +326,56 @@ window.toggleBulkMode = function() {
   if (!isAdmin) return;
   bulkMode = !bulkMode;
   effectMode = false;
+  capitalMode = false;
+  clearCapitalMode = false;
   const bulk = document.getElementById("bulkBtn");
   const eff = document.getElementById("effectBtn");
+  const cap = document.getElementById("setCapitalBtn");
+  const clrCap = document.getElementById("clearCapitalBtn");
   if (bulk) bulk.style.background = bulkMode ? "#ffd77a" : "";
   if (eff) eff.style.background = "";
+  if (cap) cap.style.background = "";
+  if (clrCap) clrCap.style.background = "";
   selectedHexes = [];
   bulkRect = null;
   render();
+};
+
+/* --- Capital editing toggles --- */
+window.toggleCapitalMode = function() {
+  if (!isAdmin) return;
+  capitalMode = !capitalMode;
+  clearCapitalMode = false;
+  effectMode = false;
+  bulkMode = false;
+  const cap = document.getElementById("setCapitalBtn");
+  const clrCap = document.getElementById("clearCapitalBtn");
+  const eff = document.getElementById("effectBtn");
+  const bulk = document.getElementById("bulkBtn");
+  if (cap) cap.style.background = capitalMode ? "#ffd77a" : "";
+  if (clrCap) clrCap.style.background = "";
+  if (eff) eff.style.background = "";
+  if (bulk) bulk.style.background = "";
+  alert(capitalMode
+    ? "Capital mode enabled. Click a hex to set or update its Military/Economy/Agriculture (0–5)."
+    : "Capital mode disabled."
+  );
+};
+window.enableClearCapital = function() {
+  if (!isAdmin) return;
+  clearCapitalMode = true;
+  capitalMode = false;
+  effectMode = false;
+  bulkMode = false;
+  const cap = document.getElementById("setCapitalBtn");
+  const clrCap = document.getElementById("clearCapitalBtn");
+  const eff = document.getElementById("effectBtn");
+  const bulk = document.getElementById("bulkBtn");
+  if (cap) cap.style.background = "";
+  if (clrCap) clrCap.style.background = "#ffd77a";
+  if (eff) eff.style.background = "";
+  if (bulk) bulk.style.background = "";
+  alert("Erase Capital enabled. Click a capital hex to clear its crown and bars.");
 };
 
 function showBulkModal() { const m = document.getElementById("bulkModal"); if (m) m.style.display = "block"; }
@@ -431,7 +414,7 @@ window.bulkClear = async function() {
   if (confirm("Clear ALL selected hexes?")) {
     for (let key of selectedHexes) {
       let { q, r } = hexGrid[key];
-      let h = { q, r, color: "rgba(0,0,0,0)", title: "", info: "", image: "", lord: "", lordInfo: "", lordVideo: "", effect: false };
+      let h = { q, r, color: "rgba(0,0,0,0)", title: "", info: "", image: "", lord: "", lordInfo: "", lordVideo: "", effect: false, capital: null };
       await setDoc(doc(db, "hexTiles", key), h);
       hexGrid[key] = h;
     }
@@ -475,19 +458,33 @@ function hexRound(q, r) {
   return { q: rx, r: rz };
 }
 
+/* TWO-PASS RENDER: hexes first, capital overlays second (so overlays are on top) */
 function render(timestamp = 0) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
 
   const t = ((timestamp || performance.now()) / 900) % 2;
   const phase = t < 1 ? t : 2 - t;
+
+  const capitalOverlays = []; // collect overlays to draw after tiles
+
+  // Pass 1: draw all hex tiles
   Object.entries(hexGrid).forEach(([key, { q, r, color, effect }]) => {
     const { x, y } = hexToPixel(q, r);
     let isEffect = !!effect;
     let isSelected = selectedHexes.includes(key);
     let effectAlpha = isEffect ? 0.45 + 0.55 * phase : 0;
     drawHex(x, y, color, key, key === hoveredHexKey, isEffect, isSelected, effectAlpha);
+
+    const tile = hexGrid[key];
+    if (tile && tile.capital) {
+      capitalOverlays.push({ x, y, capital: tile.capital });
+    }
   });
+
+  // Pass 2: draw all capital overlays on top
+  capitalOverlays.forEach(({ x, y, capital }) => drawCapitalOverlay(x, y, capital));
+
   if (bulkRect) {
     ctx.save();
     ctx.strokeStyle = "#22fffd";
@@ -530,6 +527,68 @@ function drawHex(x, y, color = "rgba(0,0,0,0)", label = "", isHovered = false, i
   ctx.restore();
 }
 
+/* Draw crown + three labeled bars above the hex */
+function drawCapitalOverlay(x, y, capital) {
+  const { hexSize } = getHexLayout();
+  const crownY = y - hexSize - 6;
+
+  // Crown
+  ctx.save();
+  ctx.font = `${Math.round(hexSize * 0.9)}px serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "#000";
+  ctx.shadowBlur = 6;
+  ctx.fillText("👑", x, crownY);
+  ctx.restore();
+
+  // Bars
+  const labels = [
+    { key: "military", color: "#c03a3a", text: "Military" },
+    { key: "economy", color: "#d2a85c", text: "Economy" },
+    { key: "agriculture", color: "#3aa04f", text: "Agriculture" }
+  ];
+  const max = 5;
+  const barWidth = hexSize * 1.8;
+  const barHeight = 6;
+  const spacing = 10;
+  const startY = crownY - 10 - (labels.length * (barHeight + spacing));
+  const labelOffsetX = -barWidth / 2 - 8;
+
+  labels.forEach((row, idx) => {
+    const v = Math.max(0, Math.min(max, Number(capital[row.key] ?? 0)));
+    const w = (v / max) * barWidth;
+    const yPos = startY + idx * (barHeight + spacing);
+    const xPos = x - barWidth / 2;
+
+    // Label text + subtle bg plate
+    ctx.save();
+    ctx.font = "12px 'Cinzel', serif";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#111";
+    ctx.globalAlpha = 0.4;
+    ctx.fillRect(xPos - 72, yPos - barHeight, 68, barHeight * 2);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#f5f1e6";
+    ctx.fillText(row.text, x + labelOffsetX, yPos + barHeight / 2);
+    ctx.restore();
+
+    // Bar bg
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(xPos, yPos, barWidth, barHeight);
+    // Bar fill
+    ctx.fillStyle = row.color;
+    ctx.fillRect(xPos, yPos, w, barHeight);
+    // Border
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(xPos, yPos, barWidth, barHeight);
+    ctx.restore();
+  });
+}
+
 canvas.addEventListener("click", async (e) => {
   if (!isAdmin) return alert("You must be logged in to edit.");
   const rect = canvas.getBoundingClientRect();
@@ -537,18 +596,54 @@ canvas.addEventListener("click", async (e) => {
   const mouseY = e.clientY - rect.top;
   const { q, r } = pixelToHex(mouseX, mouseY);
   const key = `${q},${r}`;
-  let data = hexGrid[key] || { q, r, color: "rgba(0,0,0,0)", title: "Untitled", info: "", image: "", lord: "", lordInfo: "", lordVideo: "", effect: false };
+  let data = hexGrid[key] || { q, r, color: "rgba(0,0,0,0)", title: "Untitled", info: "", image: "", lord: "", lordInfo: "", lordVideo: "", effect: false, capital: null };
 
-  // Clear tile
+  if (clearCapitalMode) {
+    if (data.capital) {
+      if (confirm("Remove capital crown and bars from this hex?")) {
+        data.capital = null;
+        hexGrid[key] = data;
+        await setDoc(doc(db, "hexTiles", key), data);
+        render();
+      }
+    } else {
+      alert("This hex is not marked as a capital.");
+    }
+    clearCapitalMode = false;
+    const clrCap = document.getElementById("clearCapitalBtn");
+    if (clrCap) clrCap.style.background = "";
+    return;
+  }
+
+  if (capitalMode) {
+    const cur = data.capital || { military: 0, economy: 0, agriculture: 0 };
+    const m = prompt("Set Military (0–5):", cur.military);
+    if (m === null) return;
+    const eVal = prompt("Set Economy (0–5):", cur.economy);
+    if (eVal === null) return;
+    const a = prompt("Set Agriculture (0–5):", cur.agriculture);
+    if (a === null) return;
+
+    const clamp = (n) => Math.max(0, Math.min(5, Number(n)||0));
+    data.capital = {
+      military: clamp(m),
+      economy: clamp(eVal),
+      agriculture: clamp(a)
+    };
+    hexGrid[key] = data;
+    await setDoc(doc(db, "hexTiles", key), data);
+    render();
+    return;
+  }
+
   if (window.clearHexMode) {
-    await setDoc(doc(db, "hexTiles", key), { q, r, color: "rgba(0,0,0,0)", title: "", info: "", image: "", lord: "", lordInfo: "", lordVideo: "", effect: false });
-    hexGrid[key] = { q, r, color: "rgba(0,0,0,0)", title: "", info: "", image: "", lord: "", lordInfo: "", lordVideo: "", effect: false };
+    await setDoc(doc(db, "hexTiles", key), { q, r, color: "rgba(0,0,0,0)", title: "", info: "", image: "", lord: "", lordInfo: "", lordVideo: "", effect: false, capital: null });
+    hexGrid[key] = { q, r, color: "rgba(0,0,0,0)", title: "", info: "", image: "", lord: "", lordInfo: "", lordVideo: "", effect: false, capital: null };
     syncHexEffectsWithGrid();
     window.clearHexMode = false;
     render(); return;
   }
 
-  // Glow toggle
   if (effectMode && isAdmin) {
     data.effect = !!data.effect ? false : true;
     hexGrid[key] = data;
@@ -558,7 +653,7 @@ canvas.addEventListener("click", async (e) => {
     return;
   }
 
-  if (bulkMode) return; // Don’t edit while bulk selecting
+  if (bulkMode) return;
 
   const title = prompt("Enter title:", data.title);
   const info = prompt("Enter description:", data.info);
@@ -568,7 +663,7 @@ canvas.addEventListener("click", async (e) => {
   const lordInfoText = prompt("Enter Lord's Info:", data.lordInfo);
   const lordVideoURL = prompt("Enter Lord's Video URL:", data.lordVideo);
 
-  data = { q, r, title, info, image, color, lord, lordInfo: lordInfoText, lordVideo: lordVideoURL, effect: data.effect || false };
+  data = { q, r, title, info, image, color, lord, lordInfo: lordInfoText, lordVideo: lordVideoURL, effect: data.effect || false, capital: data.capital || null };
   hexGrid[key] = data;
   await setDoc(doc(db, "hexTiles", key), data);
   syncHexEffectsWithGrid();
@@ -654,6 +749,7 @@ async function loadGrid() {
   const snap = await getDocs(collection(db, "hexTiles"));
   snap.forEach(docSnap => {
     const data = docSnap.data();
+    if (data.capital === undefined) data.capital = null;
     hexGrid[`${data.q},${data.r}`] = data;
   });
   syncHexEffectsWithGrid();
@@ -825,11 +921,10 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 
 /* ======================== BUSINESS BOARD ======================== */
-let businesses = [];        // [{id, name, owner, description, location, hours, logoURL, inventory:[{item,price,stock}]}]
-let editingBusiness = null; // obj reference while editing
+let businesses = [];
+let editingBusiness = null;
 let unsubscribeBusinesses = null;
 
-// Improved error helper
 function showAdminWriteError(err) {
   console.error(err);
   if (!auth.currentUser) {
@@ -903,7 +998,6 @@ function renderBusinesses() {
         ${isAdmin ? `<button onclick="openEditBusiness('${biz.id}')">✏️ Edit</button>` : ""}
       </div>
     `;
-    // Collapsible inventory
     const invHeader = card.querySelector(".invHeader");
     const invList = card.querySelector(".invList");
     invHeader.addEventListener("click", () => {
@@ -913,7 +1007,6 @@ function renderBusinesses() {
   });
 }
 
-/* --- Register business (public create; admin edits enforced by rules) --- */
 window.openBusinessPrompt = () => {
   document.getElementById("bizNameInput").value = "";
   document.getElementById("bizOwnerInput").value = "";
@@ -939,8 +1032,6 @@ window.confirmBusinessRegistration = async () => {
     await addDoc(collection(db, "businesses"), {
       name, owner, description, location, hours, logoURL, inventory: []
     });
-
-    // Best-effort admin log
     try {
       await addDoc(collection(db, "orders"), {
         type: "business",
@@ -950,16 +1041,23 @@ window.confirmBusinessRegistration = async () => {
         timestamp: Date.now()
       });
     } catch (_) {}
-
     document.getElementById("businessPrompt").style.display = "none";
-    // Admin log auto-updates via subscribeOrders()
+    if (isAdmin) loadOrders();
   } catch (err) {
     console.error("Registration failed:", err);
-    alert("Could not register the business. If this is a guest submission, ensure Firestore rules allow public CREATEs to /businesses and /orders.");
+    if (!auth.currentUser) {
+      alert("Please log in with your admin account to edit the Business Board and try again.");
+    } else if (err && err.code === "permission-denied") {
+      alert(
+        "Permission denied by Firestore rules for Business registration. " +
+        "Update your rules so logged-in admins can create in /businesses."
+      );
+    } else {
+      alert("Could not register the business. " + (err?.message || "Unknown error"));
+    }
   }
 };
 
-/* --- Edit business (ADMIN ONLY) --- */
 window.openEditBusiness = (id) => {
   if (!isAdmin) { alert("Admin login required to edit businesses."); return; }
   editingBusiness = businesses.find(b => b.id === id);
@@ -1005,7 +1103,6 @@ window.deleteBusiness = async () => {
   } catch (err) { showAdminWriteError(err); }
 };
 
-/* Inventory ops (ADMIN ONLY) */
 window.addInventoryItem = async () => {
   if (!isAdmin) { alert("Admin login required to edit inventory."); return; }
   if (!editingBusiness) return;
@@ -1030,7 +1127,6 @@ window.removeInventoryItem = async (idx) => {
   } catch (err) { showAdminWriteError(err); }
 };
 
-/* --- Meeting Requests (public create, admin reads) --- */
 window.openMeetingPrompt = (businessId) => {
   document.getElementById("meetBusinessId").value = businessId;
   document.getElementById("meetRequesterInput").value = "";
@@ -1056,8 +1152,6 @@ window.confirmMeetingRequest = async () => {
     await addDoc(collection(db, "meetingRequests"), {
       businessId, requester, message, timestamp: Date.now()
     });
-
-    // Best-effort admin log
     try {
       const biz = businesses.find(b => b.id === businessId);
       const logMsg = `🤝 Meeting Request: ${requester} → ${biz ? biz.name : businessId} — "${message}"`;
@@ -1069,9 +1163,8 @@ window.confirmMeetingRequest = async () => {
         timestamp: Date.now()
       });
     } catch (_) {}
-
     document.getElementById("meetingPrompt").style.display = "none";
-    // Admin log auto-updates via subscribeOrders()
+    if (isAdmin) loadOrders();
   } catch (err) {
     console.error("Meeting request failed:", err);
     alert("Could not send meeting request. Please try again shortly.");
@@ -1084,14 +1177,10 @@ window.onload = async () => {
   await loadGrid();
   await loadAdventureGrid();
   await loadRanks();
-  await loadBusinesses(); // real-time listener
+  await loadBusinesses();
   updateRankUI();
   renderBusinesses();
-
-  // initialize dropdown AFTER DOM exists
   initBoardSelect();
-
-  // set starting view/UI
   if (boardSelect) boardSelect.value = "hex";
   currentView = "hex";
   refreshViewVisibility();
