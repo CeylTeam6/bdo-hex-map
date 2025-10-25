@@ -118,6 +118,13 @@
     .bizActions button { background: #d2a85c; color: #222; border: none; border-radius: 8px; padding: 5px 10px; cursor: pointer; }
     .bizActions button:hover { background: #b78b39; }
 
+    /* --- CHARACTERS BOARD --- */
+    #charactersContainer {
+      display:none; position:absolute; inset:0; z-index:0;
+      background: radial-gradient(1200px 800px at 20% 20%, #3b2c1c 0%, #20160e 45%, #120c08 100%), url('business.jpg') center/cover no-repeat fixed;
+      overflow:auto; padding: 18px;
+    }
+
     @media (max-width: 900px) {
       #adminChat, #assignRanks { width: 90vw; left: 4vw; right: unset; }
       #assignRanks { min-width: unset; }
@@ -165,7 +172,7 @@
 
     <!-- Adventure mode buttons -->
     <div id="adventureButtons" style="display:none;">
-      <!-- Only the supported action remains -->
+      <!-- Removed undefined functions -->
       <button onclick="clearAdventureTile()" style="margin-top:12px;">Clear Adventure Tile</button>
     </div>
 
@@ -175,15 +182,15 @@
       <button onclick="openMeetingPromptGeneral()" title="Request a meeting with any business">Request Meeting</button>
     </div>
 
-    <!-- Admin tools (hex-only UI; visibility is controlled in JS) -->
+    <!-- Admin tools (visibility controlled by JS + view) -->
     <div id="adminButtonGroup" style="margin-left:14px;">
-      <button id="effectBtn" onclick="toggleEffectMode()" style="display:none;">✨ Tile Effect</button>
-      <button id="clearEffectsBtn" onclick="clearAllHexEffects()" style="display:none;">❌ Clear Effects</button>
-      <button id="bulkBtn" onclick="toggleBulkMode()" style="display:none;">⛶ Bulk Hex</button>
+      <button id="effectBtn" onclick="toggleEffectMode()">✨ Tile Effect</button>
+      <button id="clearEffectsBtn" onclick="clearAllHexEffects()">❌ Clear Effects</button>
+      <button id="bulkBtn" onclick="toggleBulkMode()">⛶ Bulk Hex</button>
       <button id="dashboardBtn" onclick="openDashboard()">🏰 Dashboard</button>
-      <!-- Capital controls: no inline onclick; JS wires them up and shows them only on the Hex board -->
-      <button id="setCapitalBtn" style="display:none;">👑 Set Capital</button>
-      <button id="clearCapitalBtn" style="display:none;">🔻 Clear Capital</button>
+      <!-- Capital controls -->
+      <button id="setCapitalBtn" onclick="setCapital()">👑 Set Capital</button>
+      <button id="clearCapitalBtn" onclick="clearCapital()">🔻 Clear Capital</button>
     </div>
   </div>
 
@@ -322,16 +329,9 @@
     <div id="advTooltip"></div>
   </div>
 
-  <!-- Business Board -->
-  <div id="businessContainer">
-    <div id="businessOverlay"></div>
-    <div id="candleTL" class="candle"></div>
-    <div id="candleTR" class="candle"></div>
-    <div id="candleBL" class="candle"></div>
-    <div id="candleBR" class="candle"></div>
-    <div id="businessScroll">
-      <div id="businessGrid"></div>
-    </div>
+  <!-- Characters Board (JS injects its UI here) -->
+  <div id="charactersContainer">
+    <div id="charactersMount"></div>
   </div>
 
   <!-- Admin Orders/Chat Box -->
@@ -340,6 +340,9 @@
     <ul id="orderList"></ul>
     <button onclick="clearOrders()" style="margin-top:8px;">Clear All Entries</button>
   </div>
+
+  <!-- Small error toast for deploy/debug visibility -->
+  <div id="appErrorToast" style="display:none; position:fixed; left:50%; transform:translateX(-50%); bottom:16px; background:#3a1; color:#fff; padding:8px 12px; border-radius:8px; z-index:3000; font-family:sans-serif; font-size:13px;"></div>
 
   <!-- Load your script -->
   <script type="module" src="hex-map-script.js"></script>
