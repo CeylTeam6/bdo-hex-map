@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>BDO Hex Map, Adventure & Business Board</title>
+  <title>BDO Hex Map, Adventure, Business & Character Directory</title>
   <link href="https://fonts.googleapis.com/css?family=Cinzel:700,400" rel="stylesheet">
   <style>
     html, body {
@@ -84,12 +84,10 @@
       position: absolute; left: 0; top: 0; width: 100vw; height: 100vh; display: none; z-index: 0;
       background: url('business.jpg') center/cover no-repeat fixed;
     }
-    /* Parallax overlay + medieval vibe */
     #businessOverlay {
       position: absolute; inset: 0; background: radial-gradient(ellipse at center, #00000055 0%, #000000b8 70%, #000000ee 100%);
       pointer-events: none;
     }
-    /* Candles (corners) */
     .candle { position: absolute; width: 26px; height: 44px; background: linear-gradient(#fff6d0, #f0c86e); border-radius: 6px; box-shadow: 0 0 18px #ffea96, 0 0 34px #ffcf6b; }
     .candle:after { content: ""; position: absolute; left: 50%; transform: translateX(-50%); top: -18px; width: 12px; height: 18px; border-radius: 50% 50% 50% 50%; background: radial-gradient(#ffe9a1, transparent 60%); animation: flicker 1.2s infinite ease-in-out; }
     @keyframes flicker { 0%,100% { transform: translateX(-50%) scale(1); opacity: .9 } 50% { transform: translateX(-50%) scale(1.25); opacity: .6 } }
@@ -98,7 +96,6 @@
     #candleBL { left: 18px; bottom: 18px; }
     #candleBR { right: 18px; bottom: 18px; }
 
-    /* Scrollable card grid */
     #businessScroll {
       position: absolute; left: 50%; top: 56%; transform: translate(-50%, -50%);
       width: min(1400px, 92vw); height: min(74vh, 760px); overflow: auto; padding: 18px;
@@ -121,7 +118,6 @@
     .bizActions button { background: #d2a85c; color: #222; border: none; border-radius: 8px; padding: 5px 10px; cursor: pointer; }
     .bizActions button:hover { background: #b78b39; }
 
-    /* Responsive tweaks */
     @media (max-width: 900px) {
       #adminChat, #assignRanks { width: 90vw; left: 4vw; right: unset; }
       #assignRanks { min-width: unset; }
@@ -140,6 +136,7 @@
       <option value="hex">🛡️ Kingdom Map</option>
       <option value="adventure">⚔️ Adventure Board</option>
       <option value="business">🏰 Business Board</option>
+      <option value="characters">🧿 Character Directory</option>
     </select>
   </div>
 
@@ -168,8 +165,7 @@
 
     <!-- Adventure mode buttons -->
     <div id="adventureButtons" style="display:none;">
-      <button onclick="submitAdventureMission()">Mission Request</button>
-      <button onclick="registerForMission()">Register for Mission</button>
+      <!-- Only the supported action remains -->
       <button onclick="clearAdventureTile()" style="margin-top:12px;">Clear Adventure Tile</button>
     </div>
 
@@ -179,15 +175,15 @@
       <button onclick="openMeetingPromptGeneral()" title="Request a meeting with any business">Request Meeting</button>
     </div>
 
-    <!-- Admin tools -->
+    <!-- Admin tools (hex-only UI; visibility is controlled in JS) -->
     <div id="adminButtonGroup" style="margin-left:14px;">
       <button id="effectBtn" onclick="toggleEffectMode()" style="display:none;">✨ Tile Effect</button>
       <button id="clearEffectsBtn" onclick="clearAllHexEffects()" style="display:none;">❌ Clear Effects</button>
       <button id="bulkBtn" onclick="toggleBulkMode()" style="display:none;">⛶ Bulk Hex</button>
       <button id="dashboardBtn" onclick="openDashboard()">🏰 Dashboard</button>
-      <!-- NEW: Capital controls (admin-only; visibility handled in JS) -->
-      <button id="setCapitalBtn" onclick="toggleCapitalMode()" style="display:none;">👑 Set Capital</button>
-      <button id="clearCapitalBtn" onclick="enableClearCapital()" style="display:none;">🗑️ Erase Capital</button>
+      <!-- Capital controls: no inline onclick; JS wires them up and shows them only on the Hex board -->
+      <button id="setCapitalBtn" style="display:none;">👑 Set Capital</button>
+      <button id="clearCapitalBtn" style="display:none;">🔻 Clear Capital</button>
     </div>
   </div>
 
@@ -224,7 +220,7 @@
     <button onclick="cancelRegistration()">Cancel</button>
   </div>
 
-  <!-- NEW: Business Prompts -->
+  <!-- Business Prompts -->
   <div id="businessPrompt">
     <div style="font-weight:bold;margin-bottom:8px;">Register Business</div>
     <label>Name:<br><input id="bizNameInput" style="width:240px"></label><br>
@@ -278,7 +274,7 @@
     <div id="lordPanel">
       <div id="lordName"></div>
       <div id="lordInfo"></div>
-      <video id="lordVideo" muted autoplay loop></video>
+      <video id="lordVideo" muted autoplay loop playsinline></video>
     </div>
   </div>
 
@@ -326,7 +322,7 @@
     <div id="advTooltip"></div>
   </div>
 
-  <!-- NEW: Business Board -->
+  <!-- Business Board -->
   <div id="businessContainer">
     <div id="businessOverlay"></div>
     <div id="candleTL" class="candle"></div>
