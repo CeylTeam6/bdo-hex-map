@@ -80,21 +80,13 @@ function normalizeVideoURL(url) {
   let u = url.trim();
 
   // Imgur variants
-  // - If ends with .gifv -> .mp4
-  // - If is i.imgur.com/<id> without extension -> add .mp4
-  // - If is imgur.com/<id> (page) -> i.imgur.com/<id>.mp4
   try {
     const parsed = new URL(u);
     const host = parsed.hostname.toLowerCase();
 
     if (host.includes("imgur.com")) {
-      // Convert page links to direct i.imgur.com
-      // e.g. https://imgur.com/abcd -> https://i.imgur.com/abcd.mp4
-      // e.g. https://i.imgur.com/abcd.gifv -> https://i.imgur.com/abcd.mp4
-      let path = parsed.pathname.replace(/^\/+/, ""); // remove leading slash
+      let path = parsed.pathname.replace(/^\/+/, "");
       if (!path) return u;
-
-      // Has extension?
       const hasExt = /\.\w{3,4}$/.test(path);
       if (hasExt && path.endsWith(".gifv")) {
         path = path.slice(0, -5) + ".mp4";
@@ -104,13 +96,11 @@ function normalizeVideoURL(url) {
       return `https://i.imgur.com/${path}`;
     }
 
-    // Giphy direct mp4?
+    // giphy often needs direct mp4/cdn; leave as-is if not mp4
     if (host.includes("giphy.com") && !u.endsWith(".mp4")) {
-      // leave as-is; often needs a direct mp4/cdn link
       return u;
     }
   } catch {
-    // If not a valid URL, just return it — maybe it's already a file path in Storage
     return u;
   }
 
@@ -233,7 +223,7 @@ function refreshViewVisibility() {
   showEl("businessButtons", inBusinessView, true);
   showEl("characterButtons", inCharactersView, true);
 
-  // Hex-only admin controls (including capital buttons) — ensure ONLY HEX shows them
+  // Hex-only admin controls (including capital buttons)
   const effectBtn = el("effectBtn");
   const clearEffectsBtn = el("clearEffectsBtn");
   const bulkBtn = el("bulkBtn");
@@ -255,9 +245,9 @@ function refreshViewVisibility() {
       if (!isAdmin) return;
       capitalMode = !capitalMode;
       setCapitalBtn.style.background = capitalMode ? "#ffd77a" : "";
-      clearCapitalBtn.style.background = "";
+      if (clearCapitalBtn) clearCapitalBtn.style.background = "";
       if (capitalMode) {
-        alert("Click a hex tile to set/unset it as Capital. You’ll be prompted for stats.");
+        alert("Click a hex tile to set/unset it as Capital. You’ll be prompted for stats (0–5).");
       }
     });
   }
@@ -265,7 +255,6 @@ function refreshViewVisibility() {
     clearCapitalBtn._wired = true;
     clearCapitalBtn.addEventListener("click", async () => {
       if (!isAdmin) return;
-      // Clear all capitals
       if (!confirm("Clear capital status from ALL tiles?")) return;
       for (let key in hexGrid) {
         if (hexGrid[key].capital && hexGrid[key].capital.isCapital) {
@@ -492,9 +481,9 @@ function render(timestamp = 0) {
   const phase = t < 1 ? t : 2 - t;
   Object.entries(hexGrid).forEach(([key, { q, r, color, effect, capital }]) => {
     const { x, y } = hexToPixel(q, r);
-    let isEffect = !!effect;
-    let isSelected = selectedHexes.includes(key);
-    let effectAlpha = isEffect ? 0.45 + 0.55 * phase : 0;
+    const isEffect = !!effect;
+    const isSelected = selectedHexes.includes(key);
+    const effectAlpha = isEffect ? 0.45 + 0.55 * phase : 0;
     drawHex(x, y, color, key, key === hoveredHexKey, isEffect, isSelected, effectAlpha, capital);
   });
   if (bulkRect) {
@@ -507,6 +496,64 @@ function render(timestamp = 0) {
     ctx.restore();
   }
   if (Object.keys(hexEffects).length > 0) requestAnimationFrame(render);
+}
+
+function drawCapitalBadge(x, y, hexSize, capital) {
+  if (!capital || !capital.isCapital) return;
+
+  // Crown (emoji-based for clarity)
+  ctx.save();
+  ctx.font = `${Math.floor(hexSize * 0.6)}px 'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.shadowColor = "rgba(0,0,0,0.4)";
+  ctx.shadowBlur = 8;
+  ctx.fillText("👑", x, y - hexSize * 0.55);
+  ctx.restore();
+
+  // Three stat bars: Economy (gold), Military (red), Agriculture (green)
+  const maxVal = 5;
+  const bw = Math.max(28, hexSize * 0.9);
+  const bh = Math.max(4, Math.floor(hexSize * 0.12));
+  const gap = Math.max(3, Math.floor(hexSize * 0.08));
+  const startY = y + hexSize * 0.25;
+  const startX = x - bw / 2;
+
+  const bars = [
+    { key: "economy", color: "#d2a85c", label: "E" },
+    { key: "military", color: "#c24545", label: "M" },
+    { key: "agriculture", color: "#2ea44f", label: "A" },
+  ];
+
+  bars.forEach((b, i) => {
+    const val = Math.max(0, Math.min(maxVal, Number(capital[b.key] || 0)));
+    const filled = (val / maxVal) * bw;
+    const yBar = startY + i * (bh + gap);
+
+    // track
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.35)";
+    ctx.fillRect(startX, yBar, bw, bh);
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(startX, yBar, bw, bh);
+
+    // fill
+    ctx.fillStyle = b.color;
+    ctx.fillRect(startX, yBar, filled, bh);
+
+    // outline
+    ctx.strokeStyle = "#a97b36";
+    ctx.strokeRect(startX, yBar, bw, bh);
+
+    // tiny label
+    ctx.font = `${Math.max(10, Math.floor(hexSize * 0.18))}px Cinzel, serif`;
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`${b.label}:${val}`, startX - 4, yBar + bh / 2);
+    ctx.restore();
+  });
 }
 
 function drawHex(x, y, color = "rgba(0,0,0,0)", label = "", isHovered = false, isEffect = false, isSelected = false, effectAlpha = 1, capital = null) {
@@ -528,26 +575,20 @@ function drawHex(x, y, color = "rgba(0,0,0,0)", label = "", isHovered = false, i
   ctx.strokeStyle = isHovered ? "yellow" : (isSelected ? "#5dff7a" : "rgba(0,0,0,0.7)");
   ctx.lineWidth = isHovered ? 4 : (isSelected ? 6 : 2);
   ctx.stroke();
-  if (color !== "rgba(0,0,0,0)") { ctx.fillStyle = color; ctx.fill(); }
+  if (color !== "rgba(0,0,0,0)") { ctx.fillStyle = color; ctx.globalAlpha = 1; ctx.fill(); }
   ctx.shadowBlur = 0; ctx.globalAlpha = 1;
 
-  // Label
+  // Label (showing key as before; change to hex title if desired)
   if (label) {
     ctx.fillStyle = "#000";
     ctx.font = "bold 16px 'Cinzel', serif";
     ctx.textAlign = "center";
+    ctx.textBaseline = "alphabetic";
     ctx.fillText(label, x, y + 5);
   }
 
-  // Capital badge
-  if (capital && capital.isCapital) {
-    ctx.beginPath();
-    ctx.arc(x, y - hexSize * 0.55, 10, 0, Math.PI * 2);
-    ctx.fillStyle = "#ffd700";
-    ctx.fill();
-    ctx.strokeStyle = "#603";
-    ctx.stroke();
-  }
+  // Capital badge (crown + bars)
+  drawCapitalBadge(x, y, hexSize, capital);
 
   ctx.restore();
 }
@@ -598,14 +639,20 @@ canvas.addEventListener("click", async (e) => {
     const wasCapital = data.capital && data.capital.isCapital;
     const nextIsCapital = !wasCapital;
 
-    let military = 0, economy = 0, agriculture = 0;
+    let military = data.capital?.military ?? 0;
+    let economy = data.capital?.economy ?? 0;
+    let agriculture = data.capital?.agriculture ?? 0;
+
     if (nextIsCapital) {
-      const m = prompt("Capital MILITARY (0–5):", String(data.capital?.military ?? 0));
-      const e2 = prompt("Capital ECONOMY (0–5):", String(data.capital?.economy ?? 0));
-      const a = prompt("Capital AGRICULTURE (0–5):", String(data.capital?.agriculture ?? 0));
+      const m = prompt("Capital MILITARY (0–5):", String(military));
+      const e2 = prompt("Capital ECONOMY (0–5):", String(economy));
+      const a = prompt("Capital AGRICULTURE (0–5):", String(agriculture));
       military = Math.max(0, Math.min(5, Number(m || 0)));
       economy = Math.max(0, Math.min(5, Number(e2 || 0)));
       agriculture = Math.max(0, Math.min(5, Number(a || 0)));
+    } else {
+      // turning off capital
+      military = 0; economy = 0; agriculture = 0;
     }
 
     data.capital = { isCapital: nextIsCapital, military, economy, agriculture };
@@ -723,7 +770,6 @@ async function loadGrid() {
   const snap = await getDocs(collection(db, "hexTiles"));
   snap.forEach(docSnap => {
     const data = docSnap.data();
-    // ensure capital object exists
     if (!data.capital) data.capital = { isCapital: false, military: 0, economy: 0, agriculture: 0 };
     hexGrid[`${data.q},${data.r}`] = data;
   });
@@ -1028,7 +1074,7 @@ function renderBusinesses() {
   });
 }
 
-// Business registration/editing functions … (unchanged from your last working version)
+// Business registration/editing functions
 window.openBusinessPrompt = () => {
   el("bizNameInput").value = "";
   el("bizOwnerInput").value = "";
@@ -1308,7 +1354,7 @@ function ensureCharacterDOM() {
   cont.appendChild(wrap);
   document.body.appendChild(cont);
 
-  // Character button group for sidebar (if you have it; optional)
+  // Character button group (optional sidebar)
   const existingBtnRow = el("buttonRow");
   if (existingBtnRow && !el("characterButtons")) {
     const charBtns = document.createElement("div");
@@ -1542,7 +1588,6 @@ function openCharacterCreateModal(passwordHash) {
     const progress = el("chVidProgress");
     progress.textContent = "Uploading… 0%";
     try {
-      // Temporary storage path; we need a document id — generate a push-like id
       const tempId = "temp-" + Math.random().toString(36).slice(2);
       const path = `characterVideos/${tempId}/${file.name}`;
       const r = sRef(storage, path);
@@ -1557,7 +1602,6 @@ function openCharacterCreateModal(passwordHash) {
           async () => {
             uploadedVideoURL = await getDownloadURL(task.snapshot.ref);
             progress.textContent = "Upload complete ✔";
-            // Put the URL into the URL box so the user can see/save it
             el("chVid").value = uploadedVideoURL;
             resolve();
           }
@@ -1594,10 +1638,6 @@ function openCharacterCreateModal(passwordHash) {
 
     try {
       const refDoc = await addDoc(collection(db, "characters"), payload);
-
-      // If we uploaded to a temp path, move would require re-upload; we avoid moving.
-      // Future uploads should use known doc id from edit modal.
-
       closeModal("charCreateModal");
       selectedCharacterId = refDoc.id;
       populateCharacterPicker();
@@ -1847,12 +1887,11 @@ function renderCharacterDirectory() {
     video.autoplay = true;
     video.playsInline = true;
     video.controls = false;
-    video.src = ""; // reset then set
+    video.src = "";
     video.src = url;
 
     const tryPlay = () => {
       video.play().catch(() => {
-        // If autoplay is blocked or media error, enable controls so user can tap play
         video.controls = true;
       });
     };
