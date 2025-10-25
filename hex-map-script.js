@@ -222,6 +222,8 @@ function refreshViewVisibility() {
   showEl("adventureButtons", inAdventureView, true);
   showEl("businessButtons", inBusinessView, true);
   showEl("characterButtons", inCharactersView, true);
+  // Adventure ranks panel
+  showEl("assignRanks", inAdventureView);
 
   // Hex-only admin controls (including capital buttons)
   const effectBtn = el("effectBtn");
@@ -238,6 +240,7 @@ function refreshViewVisibility() {
   if (setCapitalBtn) setCapitalBtn.style.display = isAdmin && inHexView ? "block" : "none";
   if (clearCapitalBtn) clearCapitalBtn.style.display = isAdmin && inHexView ? "block" : "none";
 
+  // Wire capital buttons once
   // Wire capital buttons once
   if (setCapitalBtn && !setCapitalBtn._wired) {
     setCapitalBtn._wired = true;
@@ -266,6 +269,32 @@ function refreshViewVisibility() {
       alert("All capitals cleared.");
     });
   }
+
+  /* === Paste Step 4 wiring RIGHT HERE === */
+  // Wire Effect button once
+  if (effectBtn && !effectBtn._wired) {
+    effectBtn._wired = true;
+    effectBtn.addEventListener("click", () => window.toggleEffectMode());
+  }
+
+  // Wire Clear Effects button once
+  if (clearEffectsBtn && !clearEffectsBtn._wired) {
+    clearEffectsBtn._wired = true;
+    clearEffectsBtn.addEventListener("click", () => window.clearAllHexEffects());
+  }
+
+  // Wire Bulk button once
+  if (bulkBtn && !bulkBtn._wired) {
+    bulkBtn._wired = true;
+    bulkBtn.addEventListener("click", () => window.toggleBulkMode());
+  }
+
+  // Wire Dashboard button once
+  if (dashboardBtn && !dashboardBtn._wired) {
+    dashboardBtn._wired = true;
+    dashboardBtn.addEventListener("click", () => window.openDashboard());
+  }
+  /* === End of Step 4 wiring === */
 
   resizeCanvas();
 
@@ -934,8 +963,14 @@ async function loadAdventureGrid() {
 
 // ================== ADVENTURE RANKS ==================
 async function loadRanks() {
+  const defaults = { S: [], A: [], B: [], C: [], D: [], E: [], F: [] };
   const docSnap = await getDoc(doc(db, "adventureRanks", "ranks"));
-  if (docSnap.exists()) { adventureRanks = docSnap.data(); updateRankUI(); }
+  if (docSnap.exists()) {
+    adventureRanks = { ...defaults, ...docSnap.data() };
+  } else {
+    adventureRanks = defaults;
+  }
+  updateRankUI();
 }
 async function saveRanks() { await setDoc(doc(db, "adventureRanks", "ranks"), adventureRanks); }
 window.assignRank = async (rank) => {
