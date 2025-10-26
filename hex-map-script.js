@@ -1996,6 +1996,41 @@ function drawCharacterChart(selected) {
     c.fillText(String(val), leftPad + Math.max(8, w - 26), y);
   });
 }
+function setupMusicToggle() {
+  const audio = document.getElementById("bgm");
+  const btn = document.getElementById("musicToggle");
+  if (!audio || !btn) return;
+
+  audio.volume = 0.4;       // tweak if you like
+  audio.muted = true;       // start muted to satisfy autoplay policies
+  audio.autoplay = true;
+  audio.play().catch(() => {}); // will start once the user clicks
+
+  const update = () => {
+    const on = !audio.paused && !audio.muted;
+    btn.textContent = on ? "🔊 Music" : "🔇 Music";
+  };
+
+  btn.addEventListener("click", async () => {
+    // If paused, try to play and unmute; if playing, pause.
+    if (audio.paused) {
+      try { await audio.play(); } catch (_) {}
+      audio.muted = false;
+    } else {
+      audio.pause();
+    }
+    update();
+  });
+
+  // First user click anywhere = start playback if browser blocked it
+  window.addEventListener("click", async function once() {
+    if (audio.paused) { try { await audio.play(); } catch (_) {} }
+    update();
+    window.removeEventListener("click", once);
+  }, { once: true });
+
+  update();
+}
 
 // ================== INIT ==================
 window.onload = async () => {
@@ -2010,7 +2045,7 @@ window.onload = async () => {
 
   initBoardSelect();
   ensureCharacterDOM();
-
+  setupMusicToggle();
   if (boardSelect) boardSelect.value = "hex";
   currentView = "hex";
   refreshViewVisibility();

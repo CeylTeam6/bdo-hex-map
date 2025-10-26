@@ -355,9 +355,32 @@
       });
       window.__appToast = toast;
     })();
+    
   </script>
+<!-- Background Music Player -->
+<audio id="bgm" src="player.mp3" loop preload="auto" autoplay muted></audio>
+<button id="musicToggle" style="
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  z-index: 4000;
+  font-family: 'Cinzel', serif;
+  font-size: 16px;
+  border-radius: 10px;
+  background: #d2a85c;
+  color: #222;
+  border: none;
+  padding: 6px 16px;
+  cursor: pointer;
+">🔇 Music</button>
+
+<!-- Load your script -->
+<script type="module" src="hex-map-script.js"></script>
+</body>
+</html>
 
   <!-- Load your script -->
   <script type="module" src="hex-map-script.js"></script>
+<audio id="bgm" src="player.mp3" loop></audio>
 </body>
 </html>
