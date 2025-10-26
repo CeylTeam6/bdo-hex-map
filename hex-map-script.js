@@ -122,6 +122,24 @@ onAuthStateChanged(auth, user => {
 
   refreshViewVisibility();
   updateRankUI();
+  function ensureRankLabels() {
+  const letters = ["S","A","B","C","D","E"];
+  letters.forEach(L => {
+    const span = document.getElementById(`rank${L}`);
+    if (!span) return;
+    // Make parent look like a row
+    span.parentElement?.classList?.add("rankRow");
+    // Insert bold label if missing
+    const prev = span.previousElementSibling;
+    if (!(prev && prev.classList && prev.classList.contains("rankCat"))) {
+      const b = document.createElement("b");
+      b.className = "rankCat";
+      b.textContent = `${L}:`;
+      span.parentNode.insertBefore(b, span);
+    }
+  });
+}
+ensureRankLabels();
   if (isAdmin) loadOrders();
 
   if (loginBox) {
