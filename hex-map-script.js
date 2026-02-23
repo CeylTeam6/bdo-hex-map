@@ -756,14 +756,27 @@ if (lawsMode && isAdmin) {
   const lordInfoText = prompt("Enter Lord's Info:", data.lordInfo);
   const lordVideoURL = prompt("Enter Lord's Video URL:", data.lordVideo);
   const heraldry = prompt("Heraldry image URL (optional):", data.heraldry || "");
+  const lawsText = prompt("Enter Laws:", data.laws || "");
 
   data = {
-    q, r, title, info, image, color, lord, lordInfo: lordInfoText,
-    lordVideo: normalizeVideoURL(lordVideoURL || ""),
-    effect: data.effect || false,
-    heraldry: heraldry || "",
-    capital: data.capital || { isCapital: false, military: 0, economy: 0, agriculture: 0 }
-  };
+  ...data,
+
+  q,
+  r,
+  title,
+  info,
+  image,
+  color,
+  lord,
+  lordInfo: lordInfoText,
+  lordVideo: normalizeVideoURL(lordVideoURL || ""),
+
+  laws: lawsText ?? data.laws ?? "",   // 🔥 THIS IS WHAT YOU WERE MISSING
+
+  effect: data.effect ?? false,
+  heraldry: heraldry ?? data.heraldry ?? "",
+  capital: data.capital ?? { isCapital: false, military: 0, economy: 0, agriculture: 0 }
+};
   hexGrid[key] = data;
   await setDoc(doc(db, "hexTiles", key), data);
   syncHexEffectsWithGrid();
@@ -779,32 +792,51 @@ canvas.addEventListener("mousemove", (e) => {
   const key = `${q},${r}`;
   hoveredHexKey = key;
   const hex = hexGrid[key];
-  if (hex && hex.laws) {
-  showLawsPanel(hex.title || key, hex.laws);
-}
 
-  if (hex && (hex.title || hex.info || hex.image)) {
+  if (hex && (hex.title || hex.info || hex.image || hex.laws)) {
+
+    // ---------------- LORD PANEL ----------------
     lordPanel.style.display = "block";
     lordPanel.style.left = `${e.clientX + 10}px`;
     lordPanel.style.top = `${e.clientY - 205}px`;
     lordName.textContent = hex.lord || "Unknown Lord";
     lordInfo.textContent = hex.lordInfo || "";
 
-    // Play video safely with normalization
+    // --- YOUR VIDEO LOGIC (UNCHANGED) ---
     lordVideo.src = normalizeVideoURL(hex.lordVideo || "");
-    lordVideo.loop = true; lordVideo.muted = true; lordVideo.playsInline = true;
+    lordVideo.loop = true;
+    lordVideo.muted = true;
+    lordVideo.playsInline = true;
     lordVideo.autoplay = true;
-    lordVideo.play().catch(() => { /* ignore */ });
+    lordVideo.play().catch(() => {});
 
+    // ---------------- TOOLTIP ----------------
     tooltip.style.display = "block";
     tooltip.style.left = `${e.clientX + 10}px`;
     tooltip.style.top = `${e.clientY + 35}px`;
-    tooltip.innerHTML = `<strong>${hex.title}</strong><br>${hex.info}` + (hex.image ? `<br><img src="${hex.image}" style="width:100px;">` : "");
+    tooltip.innerHTML =
+      `<strong>${hex.title || ""}</strong><br>${hex.info || ""}` +
+      (hex.image ? `<br><img src="${hex.image}" style="width:100px;">` : "");
+
+    // ---------------- LAWS PANEL (ONLY ON HOVER) ----------------
+    const lawsPanel = document.getElementById("lawsPanel");
+
+    if (hex.laws && hex.laws.trim() !== "") {
+      lawsPanel.style.display = "block";
+      lawsPanel.style.left = `${e.clientX + 220}px`;
+      lawsPanel.style.top = `${e.clientY - 100}px`;
+      lawsPanel.innerHTML = `<b>Laws:</b><br>${hex.laws}`;
+    } else {
+      lawsPanel.style.display = "none";
+    }
+
   } else {
     tooltip.style.display = "none";
     lordPanel.style.display = "none";
     lordVideo.pause();
+    document.getElementById("lawsPanel").style.display = "none";
   }
+
   render();
 });
 
