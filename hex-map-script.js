@@ -823,8 +823,8 @@ canvas.addEventListener("mousemove", (e) => {
 
     if (hex.laws && hex.laws.trim() !== "") {
       lawsPanel.style.display = "block";
-      lawsPanel.style.left = `${e.clientX + 220}px`;
-      lawsPanel.style.top = `${e.clientY - 100}px`;
+      lawsPanel.style.left = `${e.clientX + 300}px`;
+      lawsPanel.style.top = `${e.clientY - 225}px`;
       lawsPanel.innerHTML = `<b>Laws:</b><br>${hex.laws}`;
     } else {
       lawsPanel.style.display = "none";
