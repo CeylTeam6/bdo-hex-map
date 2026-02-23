@@ -59,6 +59,12 @@ const gridRows = 14;
 // Capital UI/State (Hex)
 let capitalMode = false; // toggled by button
 let capitalRect = null;
+// ================== WORLD STATE ==================
+let elionStartYear = 288;
+let worldStartTime = Date.now();
+// ================== LAWS SYSTEM ==================
+let lawsMode = false;
+let regionLaws = {}; // stored in memory
 
 // ================== HELPERS ==================
 function getHexLayout() {
@@ -250,6 +256,17 @@ function refreshViewVisibility() {
   const dashboardBtn = el("dashboardBtn");
   const setCapitalBtn = el("setCapitalBtn");
   const clearCapitalBtn = el("clearCapitalBtn");
+  // Wire Set Laws button
+const setLawsBtn = el("setLawsBtn");
+if (setLawsBtn && !setLawsBtn._wired) {
+  setLawsBtn._wired = true;
+  setLawsBtn.addEventListener("click", () => {
+    if (!isAdmin) return;
+    lawsMode = !lawsMode;
+    setLawsBtn.style.background = lawsMode ? "#ffd77a" : "";
+    alert("Click a region tile to set its Laws.");
+  });
+}
 
   if (effectBtn) effectBtn.style.display = isAdmin && inHexView ? "block" : "none";
   if (clearEffectsBtn) clearEffectsBtn.style.display = isAdmin && inHexView ? "block" : "none";
@@ -708,6 +725,24 @@ canvas.addEventListener("click", async (e) => {
     render();
     return;
   }
+  // ================== LAWS CLICK ==================
+if (lawsMode && isAdmin) {
+  const regionName = data.title || key;
+  const newLaw = prompt(`Enter Laws for ${regionName}:`, regionLaws[key] || "");
+  if (newLaw !== null) {
+    regionLaws[key] = newLaw;
+
+    // Save to Firestore
+    data.laws = newLaw;
+    await setDoc(doc(db, "hexTiles", key), data);
+
+    showLawsPanel(regionName, newLaw);
+  }
+  lawsMode = false;
+  const btn = el("setLawsBtn");
+  if (btn) btn.style.background = "";
+  return;
+}
 
   if (bulkMode) return; // don’t open prompts while bulk-selecting
 
@@ -743,6 +778,9 @@ canvas.addEventListener("mousemove", (e) => {
   const key = `${q},${r}`;
   hoveredHexKey = key;
   const hex = hexGrid[key];
+  if (hex && hex.laws) {
+  showLawsPanel(hex.title || key, hex.laws);
+}
 
   if (hex && (hex.title || hex.info || hex.image)) {
     lordPanel.style.display = "block";
@@ -2049,7 +2087,48 @@ function setupMusicToggle() {
 
   update();
 }
+// ================== WORLD STATE PANEL ==================
+function updateWorldState() {
+  const panel = document.getElementById("worldStateText");
+  if (!panel) return;
 
+  const now = new Date();
+
+  const est = new Date(
+    now.toLocaleString("en-US", { timeZone: "America/New_York" })
+  );
+
+  const month = String(est.getMonth() + 1).padStart(2, "0");
+  const day = String(est.getDate()).padStart(2, "0");
+
+  let hours = est.getHours();
+  const minutes = String(est.getMinutes()).padStart(2, "0");
+  const seconds = String(est.getSeconds()).padStart(2, "0");
+
+  const timeString = `${hours}:${minutes}:${seconds}`;
+
+  panel.innerHTML = `
+    <div><b>Date:</b> ${month}/${day}/288 EC</div>
+    <div><b>Time (EST):</b> ${timeString}</div>
+  `;
+  
+}
+
+setInterval(updateWorldState, 1000);
+updateWorldState();
+// ================== LAWS PANEL ==================
+function showLawsPanel(regionName, lawText) {
+  const panel = document.getElementById("lawsPanel");
+  const title = document.getElementById("lawsTitle");
+  const text = document.getElementById("lawsText");
+
+  if (!panel || !title || !text) return;
+
+  title.innerHTML = `LAWS of ${regionName}`;
+  text.textContent = lawText;
+
+  panel.style.display = "block";
+}
 // ================== INIT ==================
 window.onload = async () => {
   resizeCanvas();

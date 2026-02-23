@@ -9,6 +9,15 @@
   <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
   <link href="https://fonts.googleapis.com/css?family=Cinzel:700,400" rel="stylesheet" />
   <style>
+    @keyframes tickPulse {
+  0% { opacity: 0.85; }
+  50% { opacity: 1; }
+  100% { opacity: 0.85; }
+}
+
+#worldStateText {
+  animation: tickPulse 1s infinite;
+}
     html, body { margin:0; padding:0; width:100vw; height:100vh; overflow:hidden; font-family:'Cinzel',serif; background:#222; }
     #hexMap, #adventureGrid { position:absolute; left:0; top:0; width:100vw; height:100vh; display:block; z-index:0; background:transparent; }
 
@@ -35,6 +44,7 @@
     #lordVideo { display:block; width:180px; height:135px; border-radius:9px; margin-top:6px; }
 
     /* --- ADMIN CHAT --- */
+    
     #adminChat {
       display:none; position:absolute; right:22px; bottom:18px; width:280px; background:#212;
       color:#fff; border-radius:14px; border:2px solid #666; box-shadow:0 3px 22px #000b; z-index:100; padding:10px; font-size:14px;
@@ -69,7 +79,7 @@
 
     /* --- ASSIGN RANKS (Adventure) --- */
     #assignRanks {
-      position:absolute; right:28px; top:88px; background:#2a1f13d9; border-radius:10px; border:2px solid #d2a85c; color:#fff; padding:13px 15px 10px 18px;
+      position:absolute; right:28px; top:50%; background:#2a1f13d9; border-radius:10px; border:2px solid #d2a85c; color:#fff; padding:13px 15px 10px 18px;
       min-width:220px; box-shadow:0 6px 24px #000b; z-index:90;
     }
     #assignRanks button { margin:2px 8px 2px 0; padding:3px 12px; font-size:15px; }
@@ -80,6 +90,17 @@
       position:absolute; left:0; top:0; width:100vw; height:100vh; display:none; z-index:0;
       background:url('business.jpg') center/cover no-repeat fixed;
     }
+    /* Character Directory Background */
+#characterContainer {
+  position:absolute;
+  left:0;
+  top:0;
+  width:100vw;
+  height:100vh;
+  display:none;
+  z-index:0;
+  background:url('character.jpg') center/cover no-repeat fixed;
+}
     #businessOverlay { position:absolute; inset:0; background:radial-gradient(ellipse at center, #00000055 0%, #000000b8 70%, #000000ee 100%); pointer-events:none; }
     .candle { position:absolute; width:26px; height:44px; background:linear-gradient(#fff6d0,#f0c86e); border-radius:6px; box-shadow:0 0 18px #ffea96, 0 0 34px #ffcf6b; }
     .candle:after { content:""; position:absolute; left:50%; transform:translateX(-50%); top:-18px; width:12px; height:18px; border-radius:50% 50% 50% 50%; background:radial-gradient(#ffe9a1, transparent 60%); animation:flicker 1.2s infinite ease-in-out; }
@@ -154,6 +175,9 @@
       <button onclick="submitOrder('diplomacy')">🕊️ Diplomacy</button>
       <button onclick="registerNobleHouse()" style="margin-top:12px;">Register House</button>
       <button onclick="clearHexTile()" style="margin-top:12px;">Clear Hex Tile</button>
+      <button id="setLawsBtn" style="margin-top:12px;">
+    📜 Set Laws
+  </button>
     </div>
 
     <!-- Adventure mode buttons -->
@@ -332,6 +356,55 @@
     <ul id="orderList"></ul>
     <button onclick="clearOrders()" style="margin-top:8px;">Clear All Entries</button>
   </div>
+  <!-- Regional Laws Panel -->
+<div id="lawsPanel" style="
+  position: fixed;
+  right: 20px;
+  top: 90px;
+  width: 340px;
+  min-height: 200px;
+  background: url('https://www.transparenttextures.com/patterns/old-paper.png'),
+              linear-gradient(#f4e4bc, #e2cfa1);
+  border: 3px solid #8a6a2f;
+  padding: 16px;
+  color: #3b2a12;
+  font-family: 'Cinzel', serif;
+  box-shadow: 0 0 25px rgba(0,0,0,0.6);
+  z-index: 3000;
+  display: none;
+  border-radius: 12px;
+">
+  <div id="lawsTitle" style="
+  font-size:22px;
+  font-weight:bold;
+  margin-bottom:10px;
+  text-align:center;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.4);
+">
+    LAWS of —
+  </div>
+  <div id="lawsText" style="white-space:pre-wrap; line-height:1.4;"></div>
+</div>
+<!-- World State Panel -->
+<div id="worldStatePanel" style="
+  position: fixed;
+  right: 20px;
+  top: 10%;
+  transform: translateY(-50%);
+  width: 360px;
+  min-height: 140px;
+  background: rgba(0,0,0,0.88);
+  border: 2px solid #8a6a2f;
+  padding: 12px;
+  color: #e8d7a5;
+  font-family: 'Cinzel', serif;
+  z-index: 999;
+">
+  <div style="font-size:20px; font-weight:bold; margin-bottom:6px;">
+    🌍 WORLD STATE
+  </div>
+  <div id="worldStateText"></div>
+</div>
 
   <!-- Error toast -->
   <div id="appErrorToast"></div>
@@ -373,12 +446,6 @@
   padding: 6px 16px;
   cursor: pointer;
 ">🔇 Music</button>
-
-<!-- Load your script -->
-<script type="module" src="hex-map-script.js"></script>
-</body>
-</html>
-
   <!-- Load your script -->
   <script type="module" src="hex-map-script.js"></script>
 <audio id="bgm" src="player.mp3" loop></audio>
