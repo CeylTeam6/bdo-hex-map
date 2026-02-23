@@ -274,6 +274,7 @@ if (setLawsBtn && !setLawsBtn._wired) {
   if (dashboardBtn) dashboardBtn.style.display = inHexView ? "block" : "none";
   if (setCapitalBtn) setCapitalBtn.style.display = isAdmin && inHexView ? "block" : "none";
   if (clearCapitalBtn) clearCapitalBtn.style.display = isAdmin && inHexView ? "block" : "none";
+  if (setLawsBtn) setLawsBtn.style.display = isAdmin && inHexView ? "block" : "none";
 
   // Wire capital buttons once
   // Wire capital buttons once
@@ -2087,48 +2088,7 @@ function setupMusicToggle() {
 
   update();
 }
-// ================== WORLD STATE PANEL ==================
-function updateWorldState() {
-  const panel = document.getElementById("worldStateText");
-  if (!panel) return;
 
-  const now = new Date();
-
-  const est = new Date(
-    now.toLocaleString("en-US", { timeZone: "America/New_York" })
-  );
-
-  const month = String(est.getMonth() + 1).padStart(2, "0");
-  const day = String(est.getDate()).padStart(2, "0");
-
-  let hours = est.getHours();
-  const minutes = String(est.getMinutes()).padStart(2, "0");
-  const seconds = String(est.getSeconds()).padStart(2, "0");
-
-  const timeString = `${hours}:${minutes}:${seconds}`;
-
-  panel.innerHTML = `
-    <div><b>Date:</b> ${month}/${day}/288 EC</div>
-    <div><b>Time (EST):</b> ${timeString}</div>
-  `;
-  
-}
-
-setInterval(updateWorldState, 1000);
-updateWorldState();
-// ================== LAWS PANEL ==================
-function showLawsPanel(regionName, lawText) {
-  const panel = document.getElementById("lawsPanel");
-  const title = document.getElementById("lawsTitle");
-  const text = document.getElementById("lawsText");
-
-  if (!panel || !title || !text) return;
-
-  title.innerHTML = `LAWS of ${regionName}`;
-  text.textContent = lawText;
-
-  panel.style.display = "block";
-}
 // ================== INIT ==================
 window.onload = async () => {
   resizeCanvas();
@@ -2147,3 +2107,40 @@ window.onload = async () => {
   currentView = "hex";
   refreshViewVisibility();
 };
+// ================== WORLD STATE TIMER ==================
+function updateWorldState() {
+  const panel = document.getElementById("worldStateText");
+  if (!panel) return;
+
+  const now = new Date();
+
+  const est = new Date(
+    now.toLocaleString("en-US", { timeZone: "America/New_York" })
+  );
+
+  const month = String(est.getMonth() + 1).padStart(2, "0");
+  const day = String(est.getDate()).padStart(2, "0");
+
+  const hours = String(est.getHours()).padStart(2, "0");
+  const minutes = String(est.getMinutes()).padStart(2, "0");
+  const seconds = String(est.getSeconds()).padStart(2, "0");
+
+  panel.innerHTML = `
+    <div><b>Date:</b> ${month}/${day}/288 EC</div>
+    <div><b>Time (EST):</b> ${hours}:${minutes}:${seconds}</div>
+  `;
+}
+setInterval(updateWorldState, 1000);
+updateWorldState();
+function showLawsPanel(region, text) {
+  const panel = document.getElementById("lawsPanel");
+  const title = document.getElementById("lawsTitle");
+  const body = document.getElementById("lawsText");
+
+  if (!panel || !title || !body) return;
+
+  title.textContent = `LAWS of ${region}`;
+  body.textContent = text || "No laws set.";
+
+  panel.style.display = "block";
+}
