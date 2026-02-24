@@ -11,7 +11,9 @@ import {
   signOut
 } from "https://www.gstatic.com/firebasejs/11.9.0/firebase-auth.js";
 import {
-  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentSingleTabManager,
   doc,
   setDoc,
   getDoc,
@@ -41,7 +43,11 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentSingleTabManager()
+  })
+});
 const storage = getStorage(app);
 
 // ================== GLOBAL STATE ==================
@@ -62,6 +68,41 @@ let capitalRect = null;
 // ================== WORLD STATE ==================
 let elionStartYear = 288;
 let worldStartTime = Date.now();
+// ================== WORLD EVENTS ==================
+let worldEvents = [];
+
+// ================== RESOURCES SYSTEM ==================
+const RESOURCE_TYPES = [
+  "fish",
+  "slaves",
+  "agriculture",
+  "mineral",
+  "trade",
+  "blackStones",
+  "mercenaries"
+];
+
+// ================== INCOME TRACKER ==================
+let houseIncomeCache = {};
+function calculateWeeklyIncome() {
+  houseIncomeCache = {};
+
+  Object.values(hexGrid).forEach(tile => {
+    if (!tile.lord) return;
+
+    const economy = tile.capital?.economy || 0;
+    if (economy <= 0) return;
+
+    if (!houseIncomeCache[tile.lord]) {
+      houseIncomeCache[tile.lord] = 0;
+    }
+
+    // NEW FORMULA: 1000g × economy per tile
+    houseIncomeCache[tile.lord] += 1000 * economy;
+  });
+
+  renderIncomePanel();
+}
 // ================== LAWS SYSTEM ==================
 let lawsMode = false;
 let regionLaws = {}; // stored in memory
@@ -330,6 +371,19 @@ if (setLawsBtn && !setLawsBtn._wired) {
     dashboardBtn._wired = true;
     dashboardBtn.addEventListener("click", () => window.openDashboard());
   }
+  const worldEventBtn = el("worldEventBtn");
+
+if (worldEventBtn && !worldEventBtn._wired) {
+  worldEventBtn._wired = true;
+  worldEventBtn.addEventListener("click", () => {
+    if (!isAdmin) return;
+    window.addWorldEvent();
+  });
+}
+
+if (worldEventBtn) {
+  worldEventBtn.style.display = isAdmin && currentView === "hex" ? "block" : "none";
+}
   /* === End of Step 4 wiring === */
 
   resizeCanvas();
@@ -654,6 +708,20 @@ function drawHex(x, y, color = "rgba(0,0,0,0)", label = "", isHovered = false, i
 
   // Capital badge (crown + bars)
   drawCapitalBadge(x, y, hexSize, capital);
+  if (capital && capital.isCapital && hexGrid[label]?.resources) {
+  const res = hexGrid[label].resources;
+  const icons = Object.entries(res)
+    .filter(([_, v]) => v > 0)
+    .map(([k]) => k[0].toUpperCase())
+    .join(" ");
+
+  if (icons) {
+    ctx.fillStyle = "#fff";
+    ctx.font = `${Math.floor(hexSize * 0.25)}px Cinzel`;
+    ctx.textAlign = "center";
+    ctx.fillText(icons, x, y + hexSize * 0.9);
+  }
+}
 
   ctx.restore();
 }
@@ -757,6 +825,17 @@ if (lawsMode && isAdmin) {
   const lordVideoURL = prompt("Enter Lord's Video URL:", data.lordVideo);
   const heraldry = prompt("Heraldry image URL (optional):", data.heraldry || "");
   const lawsText = prompt("Enter Laws:", data.laws || "");
+  let resourceData = { ...data.resources };
+
+if (isAdmin) {
+  RESOURCE_TYPES.forEach(type => {
+    const val = prompt(
+      `Resource level for ${type.toUpperCase()} (0–5):`,
+      resourceData[type] ?? 0
+    );
+    resourceData[type] = Math.max(0, Math.min(5, Number(val || 0)));
+  });
+}
 
   data = {
   ...data,
@@ -770,6 +849,7 @@ if (lawsMode && isAdmin) {
   lord,
   lordInfo: lordInfoText,
   lordVideo: normalizeVideoURL(lordVideoURL || ""),
+  resources: resourceData,
 
   laws: lawsText ?? data.laws ?? "",   // 🔥 THIS IS WHAT YOU WERE MISSING
 
@@ -889,10 +969,22 @@ async function loadGrid() {
   snap.forEach(docSnap => {
     const data = docSnap.data();
     if (!data.capital) data.capital = { isCapital: false, military: 0, economy: 0, agriculture: 0 };
+    if (!data.resources) {
+  data.resources = {
+    fish: 0,
+    slaves: 0,
+    agriculture: 0,
+    mineral: 0,
+    trade: 0,
+    blackStones: 0,
+    mercenaries: 0
+  };
+}
     hexGrid[`${data.q},${data.r}`] = data;
   });
   syncHexEffectsWithGrid();
   render();
+    calculateWeeklyIncome();
   if (Object.keys(hexEffects).length > 0) requestAnimationFrame(render);
 }
 
@@ -2157,10 +2249,52 @@ function updateWorldState() {
   const minutes = String(est.getMinutes()).padStart(2, "0");
   const seconds = String(est.getSeconds()).padStart(2, "0");
 
-  panel.innerHTML = `
-    <div><b>Date:</b> ${month}/${day}/288 EC</div>
-    <div><b>Time (EST):</b> ${hours}:${minutes}:${seconds}</div>
+  // Remove expired events
+worldEvents = worldEvents.filter(ev =>
+  (Date.now() - ev.start) < (ev.duration * 86400000)
+);
+
+let eventsHTML = "";
+
+if (worldEvents.length > 0) {
+  eventsHTML = `
+    <hr>
+    <div style="margin-top:6px;">
+      <b>Active World Events:</b>
+      ${worldEvents.map(ev => `
+        <div style="margin-top:6px; padding:6px; border-bottom:1px solid #555;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div>
+              <b>${ev.title}</b><br>
+              <span style="font-size:13px;">${ev.description}</span>
+            </div>
+            ${isAdmin ? `
+              <button 
+                onclick="deleteWorldEvent('${ev.id}')"
+                style="
+                  background:#8b2c2c;
+                  color:white;
+                  border:none;
+                  border-radius:6px;
+                  padding:2px 6px;
+                  cursor:pointer;
+                  font-size:12px;
+                  margin-left:8px;
+                "
+              >✖</button>
+            ` : ""}
+          </div>
+        </div>
+      `).join("")}
+    </div>
   `;
+}
+
+panel.innerHTML = `
+  <div><b>Date:</b> ${month}/${day}/288 EC</div>
+  <div><b>Time (EST):</b> ${hours}:${minutes}:${seconds}</div>
+  ${eventsHTML}
+`;
 }
 setInterval(updateWorldState, 1000);
 updateWorldState();
@@ -2175,4 +2309,88 @@ function showLawsPanel(region, text) {
   body.textContent = text || "No laws set.";
 
   panel.style.display = "block";
+}
+// ================== WORLD EVENTS ENGINE ==================
+
+window.addWorldEvent = async function() {
+  if (!isAdmin) return;
+
+  const title = prompt("World Event Title:");
+  const description = prompt("Event Description:");
+  const duration = Number(prompt("Duration in days:", "7"));
+
+  if (!title) return;
+
+const event = {
+  id: crypto.randomUUID(), // add this line
+  title,
+  description,
+  duration,
+  start: Date.now()
+};
+window.deleteWorldEvent = function(id) {
+  if (!isAdmin) return;
+
+  worldEvents = worldEvents.filter(ev => ev.id !== id);
+  updateWorldState();
+};
+
+  worldEvents.push(event);
+  updateWorldState();
+  renderWorldEvents();
+};
+
+function renderWorldEvents() {
+  const panel = document.getElementById("worldEventsPanel");
+  if (!panel) return;
+
+  panel.innerHTML = "<h3>World Events</h3>";
+
+  worldEvents = worldEvents.filter(ev => {
+    const active = (Date.now() - ev.start) < (ev.duration * 86400000);
+    return active;
+  });
+
+  worldEvents.forEach(ev => {
+    const div = document.createElement("div");
+    div.innerHTML = `<b>${ev.title}</b><br>${ev.description}<hr>`;
+    panel.appendChild(div);
+  });
+}
+
+
+// Auto refresh every 10 seconds
+setInterval(calculateWeeklyIncome, 10000);
+// ================== INCOME PANEL ==================
+
+function renderIncomePanel() {
+  const panel = document.getElementById("incomePanel");
+  if (!panel) return;
+
+  const content = Object.entries(houseIncomeCache)
+    .map(([house, income]) => `<div>${house}: ${income}g / week</div>`)
+    .join("");
+
+  panel.innerHTML = `
+    <div id="incomeHeader" style="
+      font-weight:bold;
+      font-size:18px;
+      cursor:pointer;
+      margin-bottom:8px;
+    ">
+      💰 Weekly Income (Click to Toggle)
+    </div>
+
+    <div id="incomeContent" style="display:block;">
+      ${content || "<i>No income generated.</i>"}
+    </div>
+  `;
+
+  const header = document.getElementById("incomeHeader");
+  const incomeContent = document.getElementById("incomeContent");
+
+  header.onclick = () => {
+    incomeContent.style.display =
+      incomeContent.style.display === "none" ? "block" : "none";
+  };
 }

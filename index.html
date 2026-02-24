@@ -154,6 +154,38 @@
     </select>
   </div>
 
+
+<div id="incomePanel" style="
+  position: absolute;
+  top: 50%;
+  right: 30px;
+  transform: translateY(-50%);
+  width: 260px;
+  background: rgba(20,20,20,0.95);
+  color: #ffd77a;
+  border-radius: 12px;
+  z-index: 50;
+  overflow: hidden;
+">
+
+  <div id="incomeHeader" style="
+    padding: 10px;
+    background: #2a2a2a;
+    cursor: pointer;
+    font-weight: bold;
+    text-align: center;
+    border-bottom: 1px solid #444;
+  ">
+    💰 Weekly Income (click to expand)
+  </div>
+
+  <div id="incomeContent" style="
+    padding: 12px;
+    display: block;
+  "></div>
+
+</div>
+
   <!-- Login Box -->
   <div id="loginBox">
     <div style="margin-bottom:7px;"><b>Login</b></div>
@@ -192,15 +224,18 @@
     </div>
 
     <!-- Admin tools (JS shows/hides appropriately per board) -->
-    <div id="adminButtonGroup" style="margin-left:14px;">
-      <button id="effectBtn">✨ Tile Effect</button>
-      <button id="clearEffectsBtn">❌ Clear Effects</button>
-      <button id="bulkBtn">⛶ Bulk Hex</button>
-      <button id="dashboardBtn">🏰 Dashboard</button>
-      <!-- Removed inline onclicks; JS wires these by ID -->
-      <button id="setCapitalBtn">👑 Set Capital</button>
-      <button id="clearCapitalBtn">🔻 Clear Capital</button>
-    </div>
+<div id="adminButtonGroup" style="margin-left:14px;">
+  <button id="effectBtn">✨ Tile Effect</button>
+  <button id="clearEffectsBtn">❌ Clear Effects</button>
+  <button id="bulkBtn">⛶ Bulk Hex</button>
+  <button id="dashboardBtn">🏰 Dashboard</button>
+
+  <!-- ADD IT HERE -->
+  <button id="worldEventBtn">🌍 World Events</button>
+
+  <button id="setCapitalBtn">👑 Set Capital</button>
+  <button id="clearCapitalBtn">🔻 Clear Capital</button>
+</div>
   </div>
 
   <!-- Dashboard Modal -->
