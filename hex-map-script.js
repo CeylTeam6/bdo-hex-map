@@ -139,6 +139,7 @@ const RESOURCE_TYPES = [
 
 // ================== INCOME TRACKER ==================
 let houseIncomeCache = {};
+let incomePanelCollapsed = false;
 function calculateWeeklyIncome() {
   houseIncomeCache = {};
 
@@ -211,6 +212,32 @@ function normalizeVideoURL(url) {
 
 // Simple DOM helper
 function el(id) { return document.getElementById(id); }
+function positionInsideMap(panel, desiredLeft, desiredTop) {
+  const mapRect = canvas.getBoundingClientRect();
+  const panelRect = panel.getBoundingClientRect();
+
+  let left = desiredLeft;
+  let top = desiredTop;
+
+  // Constrain horizontally
+  if (left + panelRect.width > mapRect.right) {
+    left = mapRect.right - panelRect.width - 10;
+  }
+  if (left < mapRect.left) {
+    left = mapRect.left + 10;
+  }
+
+  // Constrain vertically
+  if (top + panelRect.height > mapRect.bottom) {
+    top = mapRect.bottom - panelRect.height - 10;
+  }
+  if (top < mapRect.top) {
+    top = mapRect.top + 10;
+  }
+
+  panel.style.left = `${left}px`;
+  panel.style.top = `${top}px`;
+}
 
 // ================== AUTH ==================
 onAuthStateChanged(auth, user => {
@@ -933,8 +960,11 @@ canvas.addEventListener("mousemove", (e) => {
 
     // ---------------- LORD PANEL ----------------
     lordPanel.style.display = "block";
-    lordPanel.style.left = `${e.clientX + 10}px`;
-    lordPanel.style.top = `${e.clientY - 205}px`;
+positionInsideMap(
+  lordPanel,
+  e.clientX + 10,
+  e.clientY - 205
+);
     lordName.textContent = hex.lord || "Unknown Lord";
     lordInfo.textContent = hex.lordInfo || "";
 
@@ -947,9 +977,12 @@ canvas.addEventListener("mousemove", (e) => {
     lordVideo.play().catch(() => {});
 
     // ---------------- TOOLTIP ----------------
-    tooltip.style.display = "block";
-    tooltip.style.left = `${e.clientX + 10}px`;
-    tooltip.style.top = `${e.clientY + 35}px`;
+   tooltip.style.display = "block";
+positionInsideMap(
+  tooltip,
+  e.clientX + 10,
+  e.clientY + 35
+);
     tooltip.innerHTML =
       `<strong>${hex.title || ""}</strong><br>${hex.info || ""}` +
       (hex.image ? `<br><img src="${hex.image}" style="width:100px;">` : "");
@@ -959,8 +992,11 @@ canvas.addEventListener("mousemove", (e) => {
 
     if (hex.laws && hex.laws.trim() !== "") {
       lawsPanel.style.display = "block";
-      lawsPanel.style.left = `${e.clientX + 300}px`;
-      lawsPanel.style.top = `${e.clientY - 225}px`;
+     positionInsideMap(
+  lawsPanel,
+  e.clientX + 300,
+  e.clientY - 225
+);
       lawsPanel.innerHTML = `<b>Laws:</b><br>${hex.laws}`;
     } else {
       lawsPanel.style.display = "none";
@@ -2440,16 +2476,15 @@ function renderIncomePanel() {
       💰 Weekly Income (Click to Toggle)
     </div>
 
-    <div id="incomeContent" style="display:block;">
+    <div id="incomeContent" style="display:${incomePanelCollapsed ? "none" : "block"};">
       ${content || "<i>No income generated.</i>"}
     </div>
   `;
 
   const header = document.getElementById("incomeHeader");
-  const incomeContent = document.getElementById("incomeContent");
 
   header.onclick = () => {
-    incomeContent.style.display =
-      incomeContent.style.display === "none" ? "block" : "none";
+    incomePanelCollapsed = !incomePanelCollapsed;
+    renderIncomePanel(); // re-render respecting state
   };
 }
