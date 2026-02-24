@@ -70,6 +70,61 @@ let elionStartYear = 288;
 let worldStartTime = Date.now();
 // ================== WORLD EVENTS ==================
 let worldEvents = [];
+function renderWorldState() {
+  const container = document.getElementById("worldEventsContainer");
+  if (!container) return;
+
+  container.innerHTML = `
+    <h3 style="margin-top:10px;">🌍 World Events</h3>
+    ${worldEvents.length === 0 
+      ? "<i>No active world events.</i>" 
+      : worldEvents.map(ev => `
+        <div style="margin-top:6px; padding:6px; border-bottom:1px solid #555;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+            <div>
+              <b>${ev.title}</b><br>
+              <span style="font-size:13px;">${ev.description || ""}</span>
+            </div>
+            ${isAdmin ? `
+              <button 
+                onclick="deleteWorldEvent('${ev.id}')"
+                style="
+                  background:#8b2c2c;
+                  color:white;
+                  border:none;
+                  border-radius:6px;
+                  padding:2px 6px;
+                  cursor:pointer;
+                  font-size:12px;
+                  margin-left:8px;
+                "
+              >✖</button>
+            ` : ""}
+          </div>
+        </div>
+      `).join("")
+    }
+  `;
+}
+// ================== WORLD EVENTS LISTENER ==================
+function subscribeWorldEvents() {
+  const colRef = collection(db, "worldEvents");
+
+  onSnapshot(colRef, (snapshot) => {
+    worldEvents = [];
+
+    snapshot.forEach(docSnap => {
+      worldEvents.push({
+        id: docSnap.id,
+        ...docSnap.data()
+      });
+    });
+
+    // 🔥 THIS WAS MISSING
+    renderWorldState();
+  });
+}
+
 
 // ================== RESOURCES SYSTEM ==================
 const RESOURCE_TYPES = [
@@ -188,6 +243,7 @@ onAuthStateChanged(auth, user => {
 }
 ensureRankLabels();
   if (isAdmin) loadOrders();
+  subscribeWorldEvents();
 
   if (loginBox) {
     let badge = el("whoami");
@@ -2270,7 +2326,7 @@ if (worldEvents.length > 0) {
             </div>
             ${isAdmin ? `
               <button 
-                onclick="deleteWorldEvent('${ev.id}')"
+                onclick="deleteWorldEvent('${ev.id.replace(/'/g, "\\'")}')"
                 style="
                   background:#8b2c2c;
                   color:white;
@@ -2312,32 +2368,35 @@ function showLawsPanel(region, text) {
 }
 // ================== WORLD EVENTS ENGINE ==================
 
-window.addWorldEvent = async function() {
+// ================== ADD WORLD EVENT ==================
+window.addWorldEvent = async function () {
   if (!isAdmin) return;
 
   const title = prompt("World Event Title:");
-  const description = prompt("Event Description:");
-  const duration = Number(prompt("Duration in days:", "7"));
-
   if (!title) return;
 
-const event = {
-  id: crypto.randomUUID(), // add this line
-  title,
-  description,
-  duration,
-  start: Date.now()
+  const description = prompt("Event Description:");
+  const duration = Number(prompt("Duration in days:", "7")) || 7;
+
+  try {
+    await addDoc(collection(db, "worldEvents"), {
+      title,
+      description,
+      duration,
+      start: Date.now(),
+      createdAt: Date.now()
+    });
+  } catch (err) {
+    console.error("World event write failed:", err);
+    alert("Failed to save world event.");
+  }
 };
-window.deleteWorldEvent = function(id) {
+window.deleteWorldEvent = async function(id) {
   if (!isAdmin) return;
 
-  worldEvents = worldEvents.filter(ev => ev.id !== id);
-  updateWorldState();
-};
+  if (!confirm("Delete this world event?")) return;
 
-  worldEvents.push(event);
-  updateWorldState();
-  renderWorldEvents();
+  await deleteDoc(doc(db, "worldEvents", id));
 };
 
 function renderWorldEvents() {
