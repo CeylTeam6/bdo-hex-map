@@ -136,7 +136,78 @@ const RESOURCE_TYPES = [
   "blackStones",
   "mercenaries"
 ];
+const RESOURCE_ICONS = {
+  fish: "🐟",
+  slaves: "⛓️",
+  agriculture: "🌾",
+  mineral: "⛏️",
+  trade: "💰",
+  blackStones: "🪨",
+  mercenaries: "⚔️"
+};
+function renderResourcePanel(hex, mouseX, mouseY) {
+  const panel = document.getElementById("resourcePanel");
+  if (!panel) return;
 
+  if (!hex || !hex.resources) {
+    panel.style.display = "none";
+    return;
+  }
+
+  panel.style.display = "block";
+
+  // Position LEFT of lord panel
+  positionInsideMap(
+    panel,
+    mouseX - 280,
+    mouseY - 200
+  );
+
+  const bars = RESOURCE_TYPES.map(type => {
+    const value = hex.resources[type] || 0;
+    const percent = (value / 5) * 100;
+
+    return `
+      <div style="margin-bottom:8px;">
+        <div style="display:flex; justify-content:space-between; font-size:13px;">
+          <span>${RESOURCE_ICONS[type]} ${type.toUpperCase()}</span>
+          <span>${value}/5</span>
+        </div>
+        <div style="
+          height:8px;
+          background:#1a120a;
+          border:1px solid #a97b36;
+          border-radius:6px;
+          overflow:hidden;
+          box-shadow: inset 0 0 6px #000;
+        ">
+          <div style="
+            width:${percent}%;
+            height:100%;
+            background:linear-gradient(90deg,#ffd77a,#d2a85c);
+            box-shadow:0 0 6px #ffd77a;
+            transition:width 0.3s ease;
+          "></div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  panel.innerHTML = `
+    <div style="
+      font-weight:bold;
+      font-size:16px;
+      margin-bottom:10px;
+      text-align:center;
+      color:#ffd77a;
+      border-bottom:1px solid #a97b36;
+      padding-bottom:6px;
+    ">
+      📊 Regional Resources
+    </div>
+    ${bars}
+  `;
+}
 // ================== INCOME TRACKER ==================
 let houseIncomeCache = {};
 let incomePanelCollapsed = false;
@@ -1002,13 +1073,16 @@ positionInsideMap(
       lawsPanel.style.display = "none";
     }
 
-  } else {
-    tooltip.style.display = "none";
-    lordPanel.style.display = "none";
-    lordVideo.pause();
-    document.getElementById("lawsPanel").style.display = "none";
-  }
+ } else {
+  tooltip.style.display = "none";
+  lordPanel.style.display = "none";
+  lordVideo.pause();
+  document.getElementById("lawsPanel").style.display = "none";
 
+  const resourcePanel = document.getElementById("resourcePanel");
+  if (resourcePanel) resourcePanel.style.display = "none";
+}
+renderResourcePanel(hex, e.clientX, e.clientY);
   render();
 });
 
