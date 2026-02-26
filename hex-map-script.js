@@ -1198,6 +1198,47 @@ window.bulkClear = async function() {
     closeBulkModal();
   }
 };
+window.bulkEditResources = async function() {
+  if (!isAdmin) return;
+
+  if (!selectedHexes.length) {
+    alert("No hexes selected.");
+    return;
+  }
+
+  const resourceUpdates = {};
+
+  // Prompt once per resource type
+  RESOURCE_TYPES.forEach(type => {
+    const val = prompt(
+      `Set ${type.toUpperCase()} level (0–5) for selected tiles:`,
+      "0"
+    );
+
+    if (val !== null) {
+      resourceUpdates[type] = Math.max(0, Math.min(5, Number(val || 0)));
+    }
+  });
+
+  for (let key of selectedHexes) {
+    let tile = hexGrid[key];
+
+    if (!tile.resources) {
+      tile.resources = {};
+    }
+
+    RESOURCE_TYPES.forEach(type => {
+      if (resourceUpdates[type] !== undefined) {
+        tile.resources[type] = resourceUpdates[type];
+      }
+    });
+
+    await setDoc(doc(db, "hexTiles", key), tile);
+  }
+
+  await loadGrid();
+  closeBulkModal();
+};
 
 // ================== ADVENTURE GRID ==================
 const adventureCanvas = document.getElementById("adventureGrid");
