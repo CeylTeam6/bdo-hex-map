@@ -194,6 +194,52 @@
     <button onclick="login()" style="margin-top:6px;">Login</button>
     <button onclick="logout()" style="margin-top:6px;">Logout</button>
   </div>
+  <!-- Bounty System Panel -->
+<div id="bountyPanel" style="
+  position:absolute;
+  left:22px;
+top:50%;
+transform:translateY(-99%);
+  width:260px;
+  background:linear-gradient(145deg,#1a120b,#2a1b10);
+  border:2px solid #d2a85c;
+  border-radius:14px;
+  padding:12px;
+  color:#f5e6c8;
+  font-family:'Cinzel', serif;
+  box-shadow:0 0 25px #000a;
+  z-index:120;
+">
+  <div style="font-weight:bold; font-size:18px; margin-bottom:8px;">
+    💀 Bounty Board
+  </div>
+
+  <div id="bountyList" style="
+    max-height:180px;
+    overflow-y:auto;
+    margin-bottom:10px;
+    font-size:14px;
+  ">
+    <i>No active bounties.</i>
+  </div>
+
+  <div style="border-top:1px solid #6e5226; padding-top:8px;">
+    <input id="bountyName" placeholder="Target Name"
+      style="width:100%; margin-bottom:4px;">
+    <input id="bountyAmount" type="number" placeholder="Gold Amount"
+      style="width:100%; margin-bottom:6px;">
+    <button onclick="postBounty()" style="
+      width:100%;
+      background:#d2a85c;
+      border:none;
+      border-radius:8px;
+      padding:6px;
+      cursor:pointer;
+    ">
+      Post Bounty
+    </button>
+  </div>
+</div>
 
   <!-- Button area -->
   <div id="buttonRow">
@@ -235,6 +281,8 @@
 
   <button id="setCapitalBtn">👑 Set Capital</button>
   <button id="clearCapitalBtn">🔻 Clear Capital</button>
+  <button id="resourcePaintBtn">🎨 Paint Resource</button>
+<button id="heatmapBtn">🔥 Heatmap</button>
 </div>
   </div>
 

@@ -70,6 +70,7 @@ let elionStartYear = 288;
 let worldStartTime = Date.now();
 // ================== WORLD EVENTS ==================
 let worldEvents = [];
+let bounties = [];
 function renderWorldState() {
   const container = document.getElementById("worldEventsContainer");
   if (!container) return;
@@ -124,6 +125,60 @@ function subscribeWorldEvents() {
     renderWorldState();
   });
 }
+function subscribeBounties() {
+  onSnapshot(collection(db, "bounties"), snap => {
+    bounties = [];
+    snap.forEach(d => {
+      bounties.push({ id: d.id, ...d.data() });
+    });
+    renderBounties();
+  });
+}
+
+function renderBounties() {
+  const list = el("bountyList");
+  if (!list) return;
+
+  list.innerHTML = bounties.length === 0
+    ? "<i>No active bounties.</i>"
+    : bounties.map(b => `
+        <div style="margin-bottom:6px;">
+          💀 ${b.name} — ${b.amount}g
+          ${isAdmin ? `
+            <button onclick="removeBounty('${b.id}')"
+              style="float:right;background:#8b2c2c;color:white;border:none;border-radius:5px;">
+              ✖
+            </button>` : ""}
+        </div>
+      `).join("");
+}
+
+window.postBounty = async function() {
+  const name = el("bountyName").value.trim();
+  const amount = Number(el("bountyAmount").value);
+
+  if (!name || !amount) return alert("Enter name and amount.");
+
+  await addDoc(collection(db, "bounties"), {
+    name,
+    amount,
+    createdAt: Date.now()
+  });
+
+  await addDoc(collection(db, "orders"), {
+    type: "bounty",
+    message: `🎯 Bounty Posted: ${name} — ${amount}g`,
+    timestamp: Date.now()
+  });
+
+  el("bountyName").value = "";
+  el("bountyAmount").value = "";
+};
+
+window.removeBounty = async function(id) {
+  if (!isAdmin) return;
+  await deleteDoc(doc(db, "bounties", id));
+};
 
 
 // ================== RESOURCES SYSTEM ==================
@@ -342,6 +397,7 @@ onAuthStateChanged(auth, user => {
 ensureRankLabels();
   if (isAdmin) loadOrders();
   subscribeWorldEvents();
+  subscribeBounties();
 
   if (loginBox) {
     let badge = el("whoami");
@@ -500,7 +556,42 @@ if (setLawsBtn && !setLawsBtn._wired) {
       alert("All capitals cleared.");
     });
   }
+// Wire Resource Paint button once
+const resourcePaintBtn = el("resourcePaintBtn");
+if (resourcePaintBtn && !resourcePaintBtn._wired) {
+  resourcePaintBtn._wired = true;
+  resourcePaintBtn.addEventListener("click", () => {
+    if (!isAdmin) return;
 
+    resourcePaintMode = !resourcePaintMode;
+    effectMode = false;
+    bulkMode = false;
+    capitalMode = false;
+
+    resourcePaintBtn.style.background = resourcePaintMode ? "#ffd77a" : "";
+
+    if (resourcePaintMode) {
+      const chosen = prompt(
+        "Which resource to paint?\n" + RESOURCE_TYPES.join(", "),
+        activePaintResource
+      );
+      if (chosen && RESOURCE_TYPES.includes(chosen)) {
+        activePaintResource = chosen;
+      }
+    }
+  });
+}
+
+// Wire Heatmap button once
+const heatmapBtn = el("heatmapBtn");
+if (heatmapBtn && !heatmapBtn._wired) {
+  heatmapBtn._wired = true;
+  heatmapBtn.addEventListener("click", () => {
+    heatmapMode = !heatmapMode;
+    heatmapBtn.style.background = heatmapMode ? "#ff7043" : "";
+    render();
+  });
+}
   /* === Paste Step 4 wiring RIGHT HERE === */
   // Wire Effect button once
   if (effectBtn && !effectBtn._wired) {
@@ -637,6 +728,9 @@ window.clearOrders = async () => {
 // ================== ADMIN & DASHBOARD (Hex) ==================
 let effectMode = false;
 let bulkMode = false;
+let resourcePaintMode = false;
+let activePaintResource = "agriculture";
+let heatmapMode = false;
 let selectedHexes = [];
 let bulkRect = null;
 let bulkStart = null;
@@ -850,6 +944,15 @@ function drawHex(x, y, color = "rgba(0,0,0,0)", label = "", isHovered = false, i
   ctx.stroke();
   if (color !== "rgba(0,0,0,0)") { ctx.fillStyle = color; ctx.globalAlpha = 1; ctx.fill(); }
   ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  // ================== HEATMAP OVERLAY ==================
+if (heatmapMode && hexGrid[label]?.resources) {
+  const res = hexGrid[label].resources;
+  const total = Object.values(res).reduce((a,b)=>a+b,0);
+  const intensity = Math.min(1, total / (RESOURCE_TYPES.length * 5));
+
+  ctx.fillStyle = `rgba(255, 80, 0, ${intensity * 0.6})`;
+  ctx.fill();
+}
 
   // Label (showing key as before; change to hex title if desired)
   if (label) {
@@ -948,6 +1051,21 @@ canvas.addEventListener("click", async (e) => {
     render();
     return;
   }
+  // ================== RESOURCE PAINT MODE ==================
+if (resourcePaintMode && isAdmin) {
+  if (!data.resources) data.resources = {};
+
+  const current = data.resources[activePaintResource] || 0;
+  const delta = e.shiftKey ? -1 : 1;
+
+  data.resources[activePaintResource] =
+    Math.max(0, Math.min(5, current + delta));
+
+  hexGrid[key] = data;
+  await setDoc(doc(db, "hexTiles", key), data);
+  render();
+  return;
+}
   // ================== LAWS CLICK ==================
 if (lawsMode && isAdmin) {
   const regionName = data.title || key;
